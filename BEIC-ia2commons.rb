@@ -50,7 +50,7 @@ File.foreach("BEIC-pids.txt", "\n") do |pid|
 	# We can finally produce a filename it.wikisource likes!
 	commons = name.split(/(,| :)/)[0] + " - " + title + ", " + year
 	# Ensure the title isn't invalid
-	commons.gsub(/[<>\[\]|{}]/, "")
+	commons = commons.gsub(/[<>\[\]|{}]/, "")
 
 	tool = URI.escape("https://tools.wmflabs.org/ia-upload/commons/init?iaId=" + ia + "&commonsName=" + commons)
 	puts "Will try: " + tool
