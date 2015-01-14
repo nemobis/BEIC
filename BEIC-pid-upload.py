@@ -9,7 +9,7 @@ Script to upload images from BEIC.it to Wikimedia Commons.
 #
 # Distributed under the terms of the MIT license.
 #
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 #
 
 import pywikibot
@@ -75,24 +75,43 @@ class BEICRobot:
         data = html.fromstring(digitool.text)
 
         # http://www.w3.org/TR/xpath/#path-abbrev
-        title = data.xpath('//td[text()="Uniform Title"]/../td[5]/text()')[0]
-        fulltitle = re.sub(r"\n", "", data.xpath('//td[text()="Pref. Cit. Note"]/../td[5]/text()')[0] )
-        language = data.xpath('//td[text()="Language Code"]/../td[5]/text()')[0]
+        # There should be at least one of these...
+        try:
+            title = data.xpath('//td[text()="Uniform Title"]/../td[5]/text()')[0]
+        except:
+            try:
+                title = data.xpath('//td[text()="Main Uni Title"]/../td[5]/text()')[0]
+            except:
+                try:
+                    title = data.xpath('//td[text()="Main Title"]/../td[5]/text()')[0]
+                except:
+                    pywikibot.output("WARNING: No title found for PID: " + pid)
+        try:
+            fulltitle = re.sub(r"\n", "", data.xpath('//td[text()="Pref. Cit. Note"]/../td[5]/text()')[0] )
+            language = data.xpath('//td[text()="Language Code"]/../td[5]/text()')[0]
+        except:
+            fulltitle = title
 
         # The pseudo-field "a" is not always in the same position (row)
         # For following-sibling etc. see http://www.w3.org/TR/xpath/#section-Location-Steps
-        if data.xpath('//td[text()="Personal Name"]/../td[4]/text()')[0] == 'a':
-            author = data.xpath('//td[text()="Personal Name"]/../td[5]/text()')[0]
-        else:
-            author = data.xpath('//td[text()="Personal Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0]
-
-        if data.xpath('//td[text()="Imprint"]'):
+        try:
+            if data.xpath('//td[text()="Personal Name"]/../td[4]/text()')[0] == 'a':
+                author = data.xpath('//td[text()="Personal Name"]/../td[5]/text()')[0]
+            else:
+                author = data.xpath('//td[text()="Personal Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0]
+        # TODO: Reduce redundancy
+        except:
+            if data.xpath('//td[text()="A.E. Pers. Name"]/../td[4]/text()')[0] == 'a':
+                author = data.xpath('//td[text()="A.E. Pers. Name"]/../td[5]/text()')[0]
+            else:
+                author = data.xpath('//td[text()="A.E. Pers. Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0]
+        try:
             place = data.xpath('//td[text()="Imprint"]/../td[5]/text()')[0]
             year = data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=2]/td[3]/text()')[0]
             publisher = data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=1]/td[3]/text()')[0]
             # We can finally produce a filename it.wikisource likes!
             commons = re.split("(,| :)", author)[0] + " - " + title + ", " + year + " - " + path
-        else:
+        except:
             # Well, almost
             commons = re.split("(,| :)", author)[0] + " - " + title + " - " + path
 
