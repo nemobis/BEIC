@@ -137,7 +137,7 @@ class BEICRobot:
         except:
             # Well, almost
             commons = re.split("(,| :)", author)[0] + u" - " + title + u" - " \
-                + os.path.basename(path)    
+                + os.path.basename(path)
 
         # Ensure the title isn't invalid
         commons = re.sub(r"[<>\[\]|{}?]", "", commons)
@@ -152,7 +152,7 @@ class BEICRobot:
         for sub in subjects:
             categories = categories + u"[[Category:" + to_unicode(sub) + u"]]\n"
 
-        description = u"""{{Book"
+        description = u"""{{Book
 |Author         = %s
 |Title          = %s
 |Publisher      = %s
