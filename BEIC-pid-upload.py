@@ -5,11 +5,11 @@ Script to upload images from BEIC.it to Wikimedia Commons.
 
 """
 #
-# (C) Federico Leva, 2015
+# (C) Federico Leva for BEIC.it, 2015
 #
 # Distributed under the terms of the MIT license.
 #
-__version__ = '0.1.1'
+__version__ = '0.1.2'
 #
 
 import pywikibot
@@ -23,6 +23,7 @@ import os
 import re
 from collections import namedtuple
 import csv
+from kitchen.text.converters import to_unicode
 
 class BEICRobot:
 
@@ -45,50 +46,71 @@ class BEICRobot:
         if titles:
             for row in titles:
                 if row.pid and row.path:
-                    pid = row.pid
-                    path = row.path
+                    pid = to_unicode(row.pid)
+                    if os.path.isfile(row.path):
+                        path = to_unicode(row.path)
+                    else:
+                        # Missing extension or other mistake?
+                        dirname = os.path.abspath(os.path.dirname(row.path))
+                        chance = [f for i, f in enumerate(os.listdir(dirname))
+                                  if f.startswith(os.path.basename(row.path))]
+                        if len(chance) == 1:
+                            path = to_unicode(dirname + "/" + chance[0])
+                        else:
+                            chance = [f for i, f in enumerate(os.listdir(dirname))
+                                  if f.startswith(os.path.basename(row.pid))]
+                            if len(chance) == 1:
+                                path = to_unicode(dirname + "/" + chance[0])
+                            else:
+                                pywikibot.output("Can't find nor guess file for PID: " + row.pid)
                 else:
                     pywikibot.output("We can't do anything without PID and path, skip: " + row)
                     pass
-                fid = ""
-                note = ""
-                if row.fid:
-                    fid = row.fid
-                if row.note:
-                    note = row.note
+                fid = u""
+                note = u""
+                try:
+                    fid = to_unicode(row.fid)
+                    note = to_unicode(row.note)
+                except:
+                    pywikibot.output("No note or fid")
 
                 pywikibot.output("Going to process PID: " + pid)
                 self.processPID(pid, path, fid, note)
 
-    def processPID(self, pid, path, fid="", note=""):
+    def processPID(self, pid, path, fid=u"", note=u""):
 
-        author = ""
-        title = ""
-        fulltitle = ""
-        publisher = ""
-        year = ""
-        place = ""
-        language = ""
-        categories = ""
+        author = u""
+        title = u""
+        fulltitle = u""
+        publisher = u""
+        year = u""
+        place = u""
+        language = u""
+        categories = u""
 
         digitool = requests.get("http://131.175.183.1/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
         data = html.fromstring(digitool.text)
+        # TODO: Add option to skip if coming from Internet Archive
 
         # http://www.w3.org/TR/xpath/#path-abbrev
         # There should be at least one of these...
         try:
-            title = data.xpath('//td[text()="Uniform Title"]/../td[5]/text()')[0]
+            title = to_unicode(data.xpath('//td[text()="Uniform Title"]/../td[5]/text()')[0])
         except:
             try:
-                title = data.xpath('//td[text()="Main Uni Title"]/../td[5]/text()')[0]
+                title = to_unicode(data.xpath('//td[text()="Main Uni Title"]/../td[5]/text()')[0])
             except:
                 try:
-                    title = data.xpath('//td[text()="Main Title"]/../td[5]/text()')[0]
+                    title = to_unicode(data.xpath('//td[text()="Main Title"]/../td[5]/text()')[0])
                 except:
                     pywikibot.output("WARNING: No title found for PID: " + pid)
+        title = re.sub(r"  +", " ", re.sub(r"\n", "", title) )
         try:
-            fulltitle = re.sub(r"\n", "", data.xpath('//td[text()="Pref. Cit. Note"]/../td[5]/text()')[0] )
-            language = data.xpath('//td[text()="Language Code"]/../td[5]/text()')[0]
+            fulltitle = re.sub(r"  +", " ",
+                               re.sub(r"\n", "",
+                               to_unicode(data.xpath('//td[text()="Pref. Cit. Note"]/../td[5]/text()')[0])
+                               ) )
+            language = to_unicode(data.xpath('//td[text()="Language Code"]/../td[5]/text()')[0])
         except:
             fulltitle = title
 
@@ -96,63 +118,69 @@ class BEICRobot:
         # For following-sibling etc. see http://www.w3.org/TR/xpath/#section-Location-Steps
         try:
             if data.xpath('//td[text()="Personal Name"]/../td[4]/text()')[0] == 'a':
-                author = data.xpath('//td[text()="Personal Name"]/../td[5]/text()')[0]
+                author = to_unicode(data.xpath('//td[text()="Personal Name"]/../td[5]/text()')[0])
             else:
-                author = data.xpath('//td[text()="Personal Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0]
+                author = to_unicode(data.xpath('//td[text()="Personal Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
         # TODO: Reduce redundancy
         except:
             if data.xpath('//td[text()="A.E. Pers. Name"]/../td[4]/text()')[0] == 'a':
-                author = data.xpath('//td[text()="A.E. Pers. Name"]/../td[5]/text()')[0]
+                author = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../td[5]/text()')[0])
             else:
-                author = data.xpath('//td[text()="A.E. Pers. Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0]
+                author = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
         try:
-            place = data.xpath('//td[text()="Imprint"]/../td[5]/text()')[0]
-            year = data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=2]/td[3]/text()')[0]
-            publisher = data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=1]/td[3]/text()')[0]
+            place = to_unicode(data.xpath('//td[text()="Imprint"]/../td[5]/text()')[0])
+            year = to_unicode(data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=2]/td[3]/text()')[0])
+            publisher = to_unicode(data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=1]/td[3]/text()')[0])
             # We can finally produce a filename it.wikisource likes!
-            commons = re.split("(,| :)", author)[0] + " - " + title + ", " + year + " - " + path
+            commons = re.split("(,| :)", author)[0] + u" - " + title + u", " + year \
+                + " - " + os.path.basename(path)
         except:
             # Well, almost
-            commons = re.split("(,| :)", author)[0] + " - " + title + " - " + path
+            commons = re.split("(,| :)", author)[0] + u" - " + title + u" - " \
+                + os.path.basename(path)    
 
         # Ensure the title isn't invalid
-        commons = re.sub(r"[<>\[\]|{}]", "", commons)
-        commons = commons[:200]
+        commons = re.sub(r"[<>\[\]|{}?]", "", commons)
+        if ( len(commons) > 200 ):
+            cut = len(commons) - 200
+            commons = commons[cut:]
 
         pywikibot.output("The filename on MediaWiki will be: " + commons)
 
         subjects = data.xpath('//td[text()="Subject-Top.Trm"]/../td[5]/text()')
         subjects = subjects + data.xpath('//td[text()="Local subject"]/../td[5]/text()')
         for sub in subjects:
-            categories = categories + "[[Category:" + sub + "]]\n"
+            categories = categories + u"[[Category:" + to_unicode(sub) + u"]]\n"
 
-        description =            u"{{Book " + \
-        "\n|Author         = " + author +    \
-        "\n|Translator     = " + \
-        "\n|Editor         = " + \
-        "\n|Title          = " + title +     \
-        "\n|Subtitle       = " + \
-        "\n|Volume         = " + \
-        "\n|Edition        = " + \
-        "\n|Publisher      = " + publisher + \
-        "\n|Printer        = " + \
-        "\n|City           = " + place +     \
-        "\n|Language       = " + language +  \
-        "\n|Date           = {{other date|CE| " + year + " }}" \
-        "\n|Description    = {{it|1= " + fulltitle + ". " + note + " }}" \
-        "\n|Source         = {{BEIC|pid= " + pid + " |id= " + fid +  " }}" \
-        "\n|Institution    = {{Institution:BEIC}}" \
-        "\n|Permission     = {{PD-old-100-1923}}" \
-        "\n|Other_versions = " \
-        "\n|Linkback       = " \
-        "}}" + "\n\n" + categories
+        description = u"""{{Book"
+|Author         = %s
+|Title          = %s
+|Publisher      = %s
+|City           = %s
+|Language       = %s
+|Date           = {{other date|CE| %s }}
+|Description    = {{it|1= %s. %s }}
+|Source         = {{BEIC|pid= %s |id= %s }}
+|Institution    = {{Institution:BEIC}}
+|Permission     = {{PD-old-100-1923}}
+}}
 
-        pywikibot.output("Going to try upload with this information" + \
-        " we assembled: " + description)
+%s""" % (author, title, publisher, place, language,
+         year, fulltitle, note, pid, fid, categories)
+        # Ugly http://comments.gmane.org/gmane.comp.python.lxml.devel/5054
+        # Hopefully all fixed with https://pythonhosted.org/kitchen/api-text-converters.html
 
-        upload = UploadRobot(path, description=description, useFilename=commons,
-                             keepFilename=True, verifyDescription=False)
-        upload.run()
+        pywikibot.output("Going to try upload with this information: ")
+        pywikibot.output(description)
+
+        # FIXME: No way to avoid being prompted if the file already exists. Patch upload.py?
+        try:
+            upload = UploadRobot(path, description=description,
+                                 useFilename=commons, keepFilename=True,
+                                 verifyDescription=False, ignoreWarning=True, aborts=True)
+            upload.run()
+        except:
+            pywikibot.output("ERROR: The upload could not be completed.")
 
 def main(*args):
     """
