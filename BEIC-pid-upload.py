@@ -5,7 +5,7 @@ Script to upload images from BEIC.it to Wikimedia Commons.
 
 """
 #
-# (C) Federico Leva for BEIC.it, 2015
+# (C) Federico Leva e Fondazione BEIC, 2015
 #
 # Distributed under the terms of the MIT license.
 #

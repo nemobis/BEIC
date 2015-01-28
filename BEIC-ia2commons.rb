@@ -11,7 +11,7 @@
 # * "login" to ia-upload with OAuth and get the PHPSESSID cookie;                #
 # * pass the cookie value as only argument to this script.                       #
 #                                                                                #
-# MIT license, Federico Leva / [[MetaWikimedia:User:Federico Leva (BEIC)]], 2014 #
+# MIT license, (C) Federico Leva e Fondazione BEIC, 2014                         #
 #                                                                                #
 ##################################################################################
 
