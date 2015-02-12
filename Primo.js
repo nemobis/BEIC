@@ -9,7 +9,7 @@
 	"inRepository": true,
 	"translatorType": 4,
 	"browserSupport": "gcsb",
-	"lastUpdated": "2015-02-11 13:32:01"
+	"lastUpdated": "2015-02-12 11:28:36"
 }
 
 /**
@@ -174,7 +174,7 @@ function fetchPNX(itemData) {
 			itemData.unshift(data);
 		} else if(!PNXUrlGenerator.confirmed){
 			//in case we can't find PNX for a particular item,
-			//go to the next and start looking from begining
+			//go to the next and start looking from beginning
 			Z.debug("Could not determine PNX url from " + data.url);
 			PNXUrlGenerator.currentFunction = 0;
 		}
@@ -215,7 +215,7 @@ function fetchPNX(itemData) {
 function importPNX(text) {
 	//Note that if the session times out, PNX record will just contain a "null" entry
 	Z.debug(text);
-	//a lot of these apply only to prim records, mainly (but no exclusively) served by the jsp file
+	//a lot of these apply only to primo records, mainly (but no exclusively) served by the jsp file
 	text = text.replace(/\<\/?xml-fragment[^\>]*\>/g, "")
 			.replace(/(<\/?)\w+:([^\>]*)/g, "$1$2") //remove namespaces
 			//remove ns declarations - we don't need them and they break this
@@ -431,6 +431,15 @@ function importPNX(text) {
 	// does callNumber get stored anywhere else in the xml?
 	item.callNumber = ZU.xpathText(doc, '//enrichment/classificationlcc');
 	
+	// Construct URL to the actual corresponding BEIC.it digital resource
+	// We could use the link on the "normal" view display.do?doc=...:
+	// <a href="...DeliveryManager? ... class="outsider EXLFullDetailsOutboundLink"...>Digital item</a>
+	// but the class is not unique and the label might be used by BEIC only;
+	// even if the matching was ok, we'd need to fetch that web page separately.
+	// If BEIC.it-specific it must be, let's be simple.
+	var pid = ZU.xpathText(doc, '//control/sourcerecordid');
+	item.url = "http://gutenberg.beic.it/webclient/DeliveryManager?pid=" + pid;
+
 	item.complete();
 }
 
@@ -650,6 +659,7 @@ var testCases = [
 				"libraryCatalog": "Primo",
 				"numPages": "16+228+4",
 				"publisher": "Vittorio Benacci",
+				"url": "http://gutenberg.beic.it/webclient/DeliveryManager?pid=4783627",
 				"attachments": [],
 				"tags": [
 					"Stelle fisse - Novae"
@@ -678,6 +688,7 @@ var testCases = [
 				"libraryCatalog": "Primo",
 				"place": "Milano",
 				"publisher": "Ambrogio da Caponago",
+				"url": "http://gutenberg.beic.it/webclient/DeliveryManager?pid=2018516",
 				"attachments": [],
 				"tags": [
 					"Italia - Storia medioevale",
@@ -687,6 +698,6 @@ var testCases = [
 				"seeAlso": []
 			}
 		]
-	},
+	}
 ]
 /** END TEST CASES **/
