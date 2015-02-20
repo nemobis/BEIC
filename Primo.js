@@ -439,6 +439,25 @@ function importPNX(text) {
 	// If BEIC.it-specific it must be, let's be simple.
 	var pid = ZU.xpathText(doc, '//control/sourcerecordid');
 	item.url = "http://gutenberg.beic.it/webclient/DeliveryManager?pid=" + pid;
+	
+	// Now load the METS info from digitool via its HTML representation...
+	var dturl = "http://gutenberg.beic.it/view/action/nmets.do?metsid=" + pid + "&op=addToc&sid=DTL1";
+	Z.debug("Trying " + dturl);
+	ZU.doGet(item.url,
+		// Hope the session is now set
+		function(digitool) {
+			ZU.processDocuments(dturl,
+				function(dtdoc) {
+					//<a onmouseover="window.status='';return true;" href="javascript:showView('DTL8')" id="labelDTL8" class="divLabel" align="absmiddle" title="Frontespizio">Frontespizio</a>
+					var dtl = ZU.xpath(dtdoc, '//a[text()="Frontespizio" or text()="Antiporta"]');
+					if (dtl.length) {
+						item.url = item.url + '&search_terms=' + dtl[0].href.replace(/.+(DTL[0-9]+)[^0-9]+/, '$1');
+						Z.debug("URL: " + item.url);
+					}
+				}
+			);
+		}
+	);
 
 	item.complete();
 }
