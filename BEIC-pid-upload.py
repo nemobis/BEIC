@@ -43,37 +43,46 @@ class BEICRobot:
             titles = namedtuple('titles', ', '.join(header))
             titles = [titles._make(row) for row in source]
 
-        if titles:
-            for row in titles:
-                if row.pid and row.path:
-                    pid = to_unicode(row.pid)
-                    if os.path.isfile(row.path):
-                        path = to_unicode(row.path)
-                    else:
-                        # Missing extension or other mistake?
-                        dirname = os.path.abspath(os.path.dirname(row.path))
-                        chance = [f for i, f in enumerate(os.listdir(dirname))
-                                  if f.startswith(os.path.basename(row.path))]
-                        if len(chance) == 1:
-                            path = to_unicode(dirname + "/" + chance[0])
-                        else:
-                            chance = [f for i, f in enumerate(os.listdir(dirname))
-                                  if f.startswith(os.path.basename(row.pid))]
-                            if len(chance) == 1:
-                                path = to_unicode(dirname + "/" + chance[0])
-                            else:
-                                pywikibot.output("Can't find nor guess file for PID: " + row.pid)
-                else:
-                    pywikibot.output("We can't do anything without PID and path, skip: " + row)
-                    pass
-                fid = u""
-                note = u""
-                try:
-                    fid = to_unicode(row.fid)
-                    note = to_unicode(row.note)
-                except:
-                    pywikibot.output("No note or fid")
+        if not titles:
+            pywikibot.output("We were not able to extract the data to work on. Exiting.")
+            return
 
+        for row in titles:
+            if not (row.pid and row.path):
+                pywikibot.output("We can't do anything without PID and path, skip: " + row)
+                continue
+
+            pid = to_unicode(row.pid)
+            if os.path.isfile(row.path):
+               path = to_unicode(row.path)
+            else:
+                # Missing extension or other mistake?
+                dirname = os.path.abspath(os.path.dirname(row.path))
+                pywikibot.output("Will look for a file in directory: " + row.pid)
+                chance = [f for i, f in enumerate(os.listdir(dirname))
+                         if f.startswith(os.path.basename(row.path))]
+                if len(chance) == 1:
+                    path = to_unicode(dirname + "/" + chance[0])
+                    pywikibot.output("We found: " + path)
+                else:
+                    pywikibot.output("Exploring files with prefix " + os.path.basename(row.pid))
+                    chance = [f for i, f in enumerate(os.listdir(dirname))
+                          if f.startswith(os.path.basename(row.pid))]
+                    if len(chance) == 1:
+                        path = to_unicode(dirname + "/" + chance[0])
+                    else:
+                        pywikibot.output("Can't find nor guess file for PID: " + row.pid)
+                        path = False
+
+            fid = u""
+            note = u""
+            try:
+                fid = to_unicode(row.fid)
+                note = to_unicode(row.note)
+            except:
+                pywikibot.output("Error while fetching note or fid")
+
+            if pid and path:
                 pywikibot.output("Going to process PID: " + pid)
                 self.processPID(pid, path, fid, note)
 
@@ -90,7 +99,12 @@ class BEICRobot:
 
         digitool = requests.get("http://131.175.183.1/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
         data = html.fromstring(digitool.text)
-        # TODO: Add option to skip if coming from Internet Archive
+
+        # TODO: make optional
+        if data.xpath("//td[contains(text(),'CaSfIA')]"):
+            pywikibot.output("Not going to upload Internet Archive book: " + pid)
+            with open("BEIC-IA-pids.txt", mode='a') as f:
+                    f.write(pid.encode("utf-8")+"\n")
 
         # http://www.w3.org/TR/xpath/#path-abbrev
         # There should be at least one of these...
