@@ -449,7 +449,8 @@ function importPNX(text) {
 			ZU.processDocuments(dturl,
 				function(dtdoc) {
 					//<a onmouseover="window.status='';return true;" href="javascript:showView('DTL8')" id="labelDTL8" class="divLabel" align="absmiddle" title="Frontespizio">Frontespizio</a>
-					var dtl = ZU.xpath(dtdoc, '//a[text()="Frontespizio" or text()="Antiporta"]');
+					var dtl = ZU.xpath(dtdoc, '//a[text()="Frontespizio" or text()="Antiporta" or text()="Occhietto" or text()="Incipit"]'); 
+					// //a[contains(text(), "1")]
 					if (dtl.length) {
 						item.url = item.url + '&search_terms=' + dtl[0].href.replace(/.+(DTL[0-9]+)[^0-9]+/, '$1');
 						Z.debug("URL: " + item.url);
