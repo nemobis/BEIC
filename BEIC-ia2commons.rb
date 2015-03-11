@@ -46,9 +46,14 @@ File.foreach("BEIC-pids.txt", "\n") do |pid|
 	else
 		name = metadata.parser.xpath('//td[text()="Personal Name"]/../following::td[text()="a"][1]/../td[last()]').text
 	end
-	year = metadata.parser.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=2]/td[3]').text 
+	if name.nil? or name == ''
+		name = "AAVV"
+	else
+		name = name.split(/(,| :)/)[0]
+	end
+	year = metadata.parser.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=2]/td[3]').text
 	# We can finally produce a filename it.wikisource likes!
-	commons = name.split(/(,| :)/)[0] + " - " + title + ", " + year
+	commons =  name + " - " + title + ", " + year
 	# Ensure the title isn't invalid
 	commons = commons.gsub(/[<>\[\]|{}]/, "")
 
@@ -60,7 +65,17 @@ File.foreach("BEIC-pids.txt", "\n") do |pid|
 	confirm = a.submit(upload, upload.buttons.first)
 	form = confirm.forms.first
 	
-	description = form['description'].sub! "{{IA|", "{{BEIC|pid = " + pid.strip! + "}} {{IA|"
+	description = form['description'].sub! "{{IA|", "{{BEIC-IA|pid = " + pid.strip! + " |ia="
+
+	author = description.match(/\| *Author *= *(.+)$/)[1]
+	author = author.gsub(/, [0-9-]+/, '')
+	# Shuffle names with disambiguation and remove numbering. Reused from Primo.js
+	author = author.gsub(/ *([^,;]+), +([^,;0-9]+) *[0-9]*, +([^,;]+) */, '\2 \1 (\3)')
+	# Same, other names
+	author = author.gsub(/ *([^,;]+), +([^,;0-9]+) *[0-9]* */, '\2 \1')
+	description = description.sub(/\| *Author *= *(.+)$/, '| Author = ' + author )
+	description = description + "\n" + '[[Category:' + author + ']]'
+
 	form['description'] = description
 	form.submit
 	rescue
