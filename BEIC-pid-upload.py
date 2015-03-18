@@ -9,7 +9,7 @@ Script to upload images from BEIC.it to Wikimedia Commons.
 #
 # Distributed under the terms of the MIT license.
 #
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 #
 
 import pywikibot
@@ -87,70 +87,22 @@ class BEICRobot:
                 self.processPID(pid, path, fid, note)
 
     def processPID(self, pid, path, fid=u"", note=u""):
-
-        author = u""
-        title = u""
-        fulltitle = u""
-        publisher = u""
-        year = u""
-        place = u""
-        language = u""
-        categories = u""
-
-        digitool = requests.get("http://131.175.183.1/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
-        data = html.fromstring(digitool.text)
+        d = self.getMetadata(pid)
 
         # TODO: make optional
-        if data.xpath("//td[contains(text(),'CaSfIA')]"):
+        if d['ia'] is True:
             pywikibot.output("Not going to upload Internet Archive book: " + pid)
             with open("BEIC-IA-pids.txt", mode='a') as f:
                     f.write(pid.encode("utf-8")+"\n")
+            return False
 
-        # http://www.w3.org/TR/xpath/#path-abbrev
-        # There should be at least one of these...
         try:
-            title = to_unicode(data.xpath('//td[text()="Uniform Title"]/../td[5]/text()')[0])
-        except:
-            try:
-                title = to_unicode(data.xpath('//td[text()="Main Uni Title"]/../td[5]/text()')[0])
-            except:
-                try:
-                    title = to_unicode(data.xpath('//td[text()="Main Title"]/../td[5]/text()')[0])
-                except:
-                    pywikibot.output("WARNING: No title found for PID: " + pid)
-        title = re.sub(r"  +", " ", re.sub(r"\n", "", title) )
-        try:
-            fulltitle = re.sub(r"  +", " ",
-                               re.sub(r"\n", "",
-                               to_unicode(data.xpath('//td[text()="Pref. Cit. Note"]/../td[5]/text()')[0])
-                               ) )
-            language = to_unicode(data.xpath('//td[text()="Language Code"]/../td[5]/text()')[0])
-        except:
-            fulltitle = title
-
-        # The pseudo-field "a" is not always in the same position (row)
-        # For following-sibling etc. see http://www.w3.org/TR/xpath/#section-Location-Steps
-        try:
-            if data.xpath('//td[text()="Personal Name"]/../td[4]/text()')[0] == 'a':
-                author = to_unicode(data.xpath('//td[text()="Personal Name"]/../td[5]/text()')[0])
-            else:
-                author = to_unicode(data.xpath('//td[text()="Personal Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
-        # TODO: Reduce redundancy
-        except:
-            if data.xpath('//td[text()="A.E. Pers. Name"]/../td[4]/text()')[0] == 'a':
-                author = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../td[5]/text()')[0])
-            else:
-                author = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
-        try:
-            place = to_unicode(data.xpath('//td[text()="Imprint"]/../td[5]/text()')[0])
-            year = to_unicode(data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=2]/td[3]/text()')[0])
-            publisher = to_unicode(data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=1]/td[3]/text()')[0])
             # We can finally produce a filename it.wikisource likes!
-            commons = re.split("(,| :)", author)[0] + u" - " + title + u", " + year \
+            commons = re.split("(,| :)", d['author'])[0] + u" - " + d['title'] + u", " + d['year'] \
                 + " - " + os.path.basename(path)
         except:
             # Well, almost
-            commons = re.split("(,| :)", author)[0] + u" - " + title + u" - " \
+            commons = re.split("(,| :)", d['author'])[0] + u" - " + d['title'] + u" - " \
                 + os.path.basename(path)
 
         # Ensure the title isn't invalid
@@ -161,9 +113,8 @@ class BEICRobot:
 
         pywikibot.output("The filename on MediaWiki will be: " + commons)
 
-        subjects = data.xpath('//td[text()="Subject-Top.Trm"]/../td[5]/text()')
-        subjects = subjects + data.xpath('//td[text()="Local subject"]/../td[5]/text()')
-        for sub in subjects:
+        categories = u""
+        for sub in d['subjects']:
             categories = categories + u"[[Category:" + to_unicode(sub) + u"]]\n"
 
         description = u"""{{Book
@@ -179,8 +130,8 @@ class BEICRobot:
 |Permission     = {{PD-old-100-1923}}
 }}
 
-%s""" % (author, title, publisher, place, language,
-         year, fulltitle, note, pid, fid, categories)
+%s""" % (d['author'], d['title'], d['publisher'], d['place'], d['language'],
+         d['year'], d['fulltitle'], d['note'], d['pid'], d['fid'], d['categories'])
         # Ugly http://comments.gmane.org/gmane.comp.python.lxml.devel/5054
         # Hopefully all fixed with https://pythonhosted.org/kitchen/api-text-converters.html
 
@@ -195,6 +146,76 @@ class BEICRobot:
             upload.run()
         except:
             pywikibot.output("ERROR: The upload could not be completed.")
+
+def getMetadata(pid):
+
+    # Reminder what to get:
+    d = {}
+    d['author'] = u""
+    d['title'] = u""
+    d['fulltitle'] = u""
+    d['publisher'] = u""
+    d['year'] = u""
+    d['place'] = u""
+    d['language'] = u""
+    d['sysno'] = u""
+
+    digitool = requests.get("http://131.175.183.1/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
+    data = html.fromstring(digitool.text)
+
+    if data.xpath("//td[contains(text(),'CaSfIA')]"):
+        d['ia'] = True
+    else:
+        d['ia'] = False
+
+    # http://www.w3.org/TR/xpath/#path-abbrev
+    # There should be at least one of these...
+    try:
+        d['title'] = to_unicode(data.xpath('//td[text()="Uniform Title"]/../td[5]/text()')[0])
+    except:
+        try:
+            d['title'] = to_unicode(data.xpath('//td[text()="Main Uni Title"]/../td[5]/text()')[0])
+        except:
+            try:
+                d['title'] = to_unicode(data.xpath('//td[text()="Main Title"]/../td[5]/text()')[0])
+            except:
+                pywikibot.output("WARNING: No title found for PID: " + pid)
+    d['title'] = re.sub(r"  +", " ", re.sub(r"\n", "", d['title']) )
+    try:
+        d['fulltitle'] = re.sub(r"  +", " ",
+                           re.sub(r"\n", "",
+                           to_unicode(data.xpath('//td[text()="Pref. Cit. Note"]/../td[5]/text()')[0])
+                           ) )
+        d['language'] = to_unicode(data.xpath('//td[text()="Language Code"]/../td[5]/text()')[0])
+    except:
+        d['fulltitle'] = d['title']
+
+    # The pseudo-field "a" is not always in the same position (row)
+    # For following-sibling etc. see http://www.w3.org/TR/xpath/#section-Location-Steps
+    try:
+        if data.xpath('//td[text()="Personal Name"]/../td[4]/text()')[0] == 'a':
+            d['author'] = to_unicode(data.xpath('//td[text()="Personal Name"]/../td[5]/text()')[0])
+        else:
+            d['author'] = to_unicode(data.xpath('//td[text()="Personal Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
+    # TODO: Reduce redundancy
+    except:
+        if data.xpath('//td[text()="A.E. Pers. Name"]/../td[4]/text()')[0] == 'a':
+            d['author'] = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../td[5]/text()')[0])
+        else:
+            d['author'] = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
+    try:
+        d['place'] = to_unicode(data.xpath('//td[text()="Imprint"]/../td[5]/text()')[0])
+        d['year'] = to_unicode(data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=2]/td[3]/text()')[0])
+        d['publisher'] = to_unicode(data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=1]/td[3]/text()')[0])
+    except:
+        pass
+
+    d['subjects'] = []
+    d['subjects'] = data.xpath('//td[text()="Local subject" or text()="Subject-Top.Trm"]/../td[5]/text()')
+
+    d['sysno'] = to_unicode(data.xpath('//td[text()="System No."]/../td[5]/text()')[0])
+
+    return d
 
 def main(*args):
     """
