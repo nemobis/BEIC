@@ -12,10 +12,10 @@ Script to upload images from BEIC.it to Wikimedia Commons.
 __version__ = '0.1.3'
 #
 
-import pywikibot
-import pywikibot.data.api
-from pywikibot import config
-from upload import UploadRobot
+#import pywikibot
+#import pywikibot.data.api
+#from pywikibot import config
+#from upload import UploadRobot
 import requests
 from lxml import html
 import sys
@@ -89,12 +89,17 @@ class BEICRobot:
     def processPID(self, pid, path, fid=u"", note=u""):
         d = self.getMetadata(pid)
 
+        if d is None:
+            pywikibot.output("Could not retrieve data for PID: " + pid)
+            return
         # TODO: make optional
         if d['ia'] is True:
             pywikibot.output("Not going to upload Internet Archive book: " + pid)
             with open("BEIC-IA-pids.txt", mode='a') as f:
                     f.write(pid.encode("utf-8")+"\n")
             return False
+        if d['title'] == u"":
+            pywikibot.output("WARNING: No title found for PID: " + pid)
 
         try:
             # We can finally produce a filename it.wikisource likes!
@@ -161,7 +166,10 @@ def getMetadata(pid):
     d['sysno'] = u""
 
     digitool = requests.get("http://131.175.183.1/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
-    data = html.fromstring(digitool.text)
+    try:
+        data = html.fromstring(digitool.text)
+    except:
+        return None
 
     if data.xpath("//td[contains(text(),'CaSfIA')]"):
         d['ia'] = True
@@ -179,7 +187,7 @@ def getMetadata(pid):
             try:
                 d['title'] = to_unicode(data.xpath('//td[text()="Main Title"]/../td[5]/text()')[0])
             except:
-                pywikibot.output("WARNING: No title found for PID: " + pid)
+                pass
     d['title'] = re.sub(r"  +", " ", re.sub(r"\n", "", d['title']) )
     try:
         d['fulltitle'] = re.sub(r"  +", " ",
@@ -199,10 +207,14 @@ def getMetadata(pid):
             d['author'] = to_unicode(data.xpath('//td[text()="Personal Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
     # TODO: Reduce redundancy
     except:
-        if data.xpath('//td[text()="A.E. Pers. Name"]/../td[4]/text()')[0] == 'a':
-            d['author'] = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../td[5]/text()')[0])
-        else:
-            d['author'] = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
+        try:
+            if data.xpath('//td[text()="A.E. Pers. Name"]/../td[4]/text()')[0] == 'a':
+                d['author'] = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../td[5]/text()')[0])
+        except:
+            try:
+                d['author'] = to_unicode(data.xpath('//td[text()="A.E. Pers. Name"]/../following::td[text()="a"][1]/../td[last()]/text()')[0])
+            except:
+                pass
     try:
         d['place'] = to_unicode(data.xpath('//td[text()="Imprint"]/../td[5]/text()')[0])
         d['year'] = to_unicode(data.xpath('//td[text()="Imprint"]/../following-sibling::tr[position()=2]/td[3]/text()')[0])
@@ -213,7 +225,10 @@ def getMetadata(pid):
     d['subjects'] = []
     d['subjects'] = data.xpath('//td[text()="Local subject" or text()="Subject-Top.Trm"]/../td[5]/text()')
 
-    d['sysno'] = to_unicode(data.xpath('//td[text()="System No."]/../td[5]/text()')[0])
+    d['sysno'] = to_unicode(data.xpath('//td[text()="System No."]/../td[5]/text()'))
+    if d['sysno'] == []:
+        d['sysno'] = u""
+    d['pid'] = to_unicode(pid)
 
     return d
 
