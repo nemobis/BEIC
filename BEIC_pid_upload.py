@@ -165,7 +165,7 @@ def getMetadata(pid):
     d['language'] = u""
     d['sysno'] = u""
 
-    digitool = requests.get("http://131.175.183.1/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
+    digitool = requests.get("http://131.175.183.15/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
     try:
         data = html.fromstring(digitool.text)
     except:

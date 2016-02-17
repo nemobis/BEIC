@@ -43,5 +43,5 @@ with open('BEIC-opere.csv', 'w') as csvfile:
                         to_bytes(d['sysno']),
                         to_bytes(ia),
                         to_bytes('http://gutenberg.beic.it/webclient/DeliveryManager?pid=' + d['pid']),
-                        to_bytes('http://131.175.183.1/webclient/MetadataManager?descriptive_only=true&pid=' + d['pid'])
+                        to_bytes('http://131.175.183.15/webclient/MetadataManager?descriptive_only=true&pid=' + d['pid'])
                         ])

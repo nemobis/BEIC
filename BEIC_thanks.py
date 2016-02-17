@@ -16,13 +16,18 @@ from wikitools import wiki
 from wikitools import api
 from wikitools import page
 import time
+import re
+from collections import defaultdict
 
 base = wiki.Wiki("http://www.wikidata.org/w/api.php")
+thankscount = defaultdict(int)
+deferred = open('deferred-thanks.txt', 'a')
 
 def getRelevantRevisions(wikiapi, title):
 	revisions = set([])
 	editors = set([])
 	hashes = set([])
+	revisionby = defaultdict()
 	size_old = 0
 
 	site = wiki.Wiki(wikiapi)
@@ -31,17 +36,40 @@ def getRelevantRevisions(wikiapi, title):
 	for i in hist:
 		# Cannot thank unregistered users yet
 		# if i['userid'] == 0:
-		#	continue
+		# continue
 		if 'userhidden' in i:
 			continue
-		if not revisions or ( i['userid'] not in editors
-					   and i['sha1'] not in hashes and i['size'] - size_old > 500 ):
-			revisions.add( i['revid'] )
-			editors.add( i['userid'] )
+		try:
+			# TODO: Consider thanking for the biggest edit instead
+			if not revisions or ( i['user'] not in editors
+						and i['sha1'] not in hashes and i['size'] - size_old > 1000 ):
+				if thankscount[i['user']] <= 5:
+					revisions.add( i['revid'] )
+					editors.add( i['user'] )
+					revisionby[i['revid']] = i['user']
+					thankscount[i['user']] += 1
+				else:
+					deferred.write( '%s\t%d\n' % ( wikiapi, i['revid'] ) )
+			# Never thank occurrences of a text after the first.
 			hashes.add( i['sha1'] )
+		except KeyError:
+			continue
 		size_old = i['size']
 
+	params = { 'action': 'query', 'list': 'blocks', 'bkprop': 'userid', 'bkusers': '|'.join( editors ) }
+	blocked = api.APIRequest(site, params).query()
+	try:
+		for block in blocked['query']['blocks']:
+			print 'Skipping blocked user "%s"' % block['user']
+			revisions.remove( revisionby[block['user']] )
+	except KeyError:
+		continue
+
 	return revisions
+
+def getBlockedAuthors(wikiapi, revisions, history)
+	site = wiki.Wiki(wikiapi)
+	params = { 'action': 'query', 'list': 'blocks', 'bkprop': 'userid',  }
 
 def thankRevisions(wikiapi, revisions):
 	thanker = wiki.Wiki(wikiapi)
@@ -90,8 +118,8 @@ def getApiMap():
 
 def main():
 	for [wikiapi, title] in getPages():
-		#if wikiapi != u'https://ru.wikipedia.org/w/api.php':
-		#	continue
+		if re.search('(ru|de|it|sv|fr)\.wikipedia', wikiapi):
+			continue
 		print 'Now doing "%s" via %s' % (title, wikiapi)
 		revisions = getRelevantRevisions(wikiapi, title)
 		print 'Found %d revisions to thank for' % len(revisions)
