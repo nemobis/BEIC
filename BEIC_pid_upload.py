@@ -223,7 +223,9 @@ def getMetadata(pid):
         pass
 
     d['subjects'] = []
-    d['subjects'] = data.xpath('//td[text()="Local subject" or text()="Subject-Top.Trm"]/../td[5]/text()')
+    d['subjects'] = data.xpath('//td[text()="Local subject" or text()="Capt. Supp.Mat."]/../td[5]/text()')
+    # Campi spezzettati, spesso ridondanti
+    # d['subjectsTree'] = data.xpath('//td[text()="Subject-Top.Trm"]
 
     d['sysno'] = to_unicode(data.xpath('//td[text()="System No."]/../td[5]/text()'))
     if d['sysno'] == []:
