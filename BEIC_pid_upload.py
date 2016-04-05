@@ -227,6 +227,19 @@ def getMetadata(pid):
     # Campi spezzettati, spesso ridondanti
     # d['subjectsTree'] = data.xpath('//td[text()="Subject-Top.Trm"]
 
+    try:
+        d['yearfixed'] = re.search(
+            to_unicode(data.xpath('//td[text()="Fixed Data"]/../td[2]/text()')[0]),
+            r's([0-9]{4}) '
+        ).group(0)
+        d['geographicname'] = data.xpath('//td[text()="751"]/../td[5]/text()')[0]
+        d['physical'] = []
+        d['physical']['a'] = to_unicode(data.xpath('//td[text()="Physical Des."]/../td[5]/text()')[0])
+        d['physical']['b'] = to_unicode(data.xpath('//td[text()="Physical Des."]/../following-sibling::tr[position()=2]/td[3]/text()')[0])
+        d['general'] = data.xpath('//td[text()="General Note"]/../td[5]/text()')
+    except:
+        pass
+
     d['sysno'] = to_unicode(data.xpath('//td[text()="System No."]/../td[5]/text()'))
     if d['sysno'] == []:
         d['sysno'] = u""
