@@ -12,10 +12,13 @@ Script to upload images from BEIC.it to Wikimedia Commons.
 __version__ = '0.1.3'
 #
 
-#import pywikibot
-#import pywikibot.data.api
-#from pywikibot import config
-#from upload import UploadRobot
+try:
+    import pywikibot
+    import pywikibot.data.api
+    from pywikibot import config
+    from upload import UploadRobot
+except:
+    pass
 import requests
 from lxml import html
 import sys
@@ -88,7 +91,7 @@ class BEICRobot:
                 self.processPID(pid, path, fid, note)
 
     def processPID(self, pid, path, fid=u"", note=u""):
-        d = self.getMetadata(pid)
+        d = getMetadata(pid)
 
         if d is None:
             pywikibot.output("Could not retrieve data for PID: " + pid)
@@ -102,10 +105,16 @@ class BEICRobot:
         if d['title'] == u"":
             pywikibot.output("WARNING: No title found for PID: " + pid)
 
+
         try:
-            # We can finally produce a filename it.wikisource likes!
-            commons = re.split("(,| :)", d['author'])[0] + u" - " + d['title'] + u", " + d['year'] \
-                + " - " + os.path.basename(path)
+            if self.material == 'photo':
+                if d['geographicname'] and d['yearfixed']:
+                    d['title'] = "%s (%s, %s)" % ( d['title'], d['geographicname'], d['yearfixed'] )
+                commons = "%s - %s.jpg" % ( d['title'], pid)
+            else:
+                # We can finally produce a filename it.wikisource likes!
+                commons = re.split("(,| :)", d['author'])[0] + u" - " + d['title'] \
+                    + u", " + d['year'] + " - " + os.path.basename(path)
         except:
             # Well, almost
             commons = re.split("(,| :)", d['author'])[0] + u" - " + d['title'] + u" - " \
@@ -113,44 +122,45 @@ class BEICRobot:
 
         # Ensure the title isn't invalid
         commons = re.sub(r"[<>\[\]|{}?]", "", commons)
-        if ( len(commons) > 200 ):
-            cut = len(commons) - 200
+        if ( len( commons ) > 200 ):
+            cut = len( commons ) - 200
             commons = commons[cut:]
 
         pywikibot.output("The filename on MediaWiki will be: " + commons)
 
         categories = u""
-        for sub in d['subjects']:
+        for sub in d['subjects'] + d['subjectsTree']:
             categories = categories + u"[[Category:" + to_unicode(sub) + u"]]\n"
 
         if self.material == 'photo':
-            description u"""
+            description = u"""
 {{Photograph
- |photographer       = {{creator:Paolo Monti}}
+ |photographer       = {{Creator:Paolo Monti}}
  |title              = %s
  |description        = %s
- |depicted people    = 
+ |depicted people    =
  |depicted place     = %s
  |date               = %s
  |medium             = %s
  |dimensions         = %s
- |institution        = {{institution:BEIC}}
+ |institution        = {{Institution:BEIC}}
  |department         =
  |references         =
  |object history     =
  |exhibition history =
  |credit line        =
- |inscriptions       = %s
  |notes              =
- |accession number   = {{BEIC|pid= %s |id= %s }}
- |source             =
-{{en|[http://www.beic.it/en/articles/digital-library BEIC digital library] - [http://www.beic.it/it/articoli/fondo-paolo-monti Fondo Paolo Monti]}}
-{{it|[http://www.beic.it/it/articoli/fondo-paolo-monti Biblioteca digitale BEIC] - [http://www.beic.it/it/articoli/fondo-paolo-monti Fondo Paolo Monti]}}
+ |accession number   = %s
+ |source             = {{BEIC|pid= %s |id= %s |collezione=Monti}}
  |permission         = {{cc-by-sa-4.0}}
+ |inscriptions       = %s
  |other_versions     =
 }}
-""" % ( d['title'], d['fulltitle'], d['geographicname'], d['yearfixed'], d['physical']['a'], d['physical']['b'],
-            d['general'], d['pid'], d['sysno'] )
+
+%s""" % ( d['title'], d['fulltitle'], d['geographicname'], d['yearfixed'],
+    d['physical-a'], d['physical-b'], d['sysno'], d['pid'], d['sysno'],
+    re.sub("\n\s+", "", "\n*" + "\n*".join(d['general'])), categories )
+
         else:
             description = u"""{{Book
 |Author         = %s
@@ -165,8 +175,8 @@ class BEICRobot:
 |Permission     = {{PD-old-100-1923}}
 }}
 
-%s""" % (d['author'], d['title'], d['publisher'], d['place'], d['language'],
-         d['year'], d['fulltitle'], d['note'], d['pid'], d['fid'], d['categories'])
+%s""" % ( d['author'], d['title'], d['publisher'], d['place'], d['language'],
+         d['year'], d['fulltitle'], d['note'], d['pid'], d['fid'], categories )
         # Ugly http://comments.gmane.org/gmane.comp.python.lxml.devel/5054
         # Hopefully all fixed with https://pythonhosted.org/kitchen/api-text-converters.html
 
@@ -196,7 +206,7 @@ def getMetadata(pid):
     d['sysno'] = u""
 
     try:
-        digitool = requests.get("http://131.175.183.15/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
+        digitool = requests.get("http://gutenberg.beic.it/webclient/MetadataManager?descriptive_only=true&pid=" + pid)
         data = html.fromstring(digitool.text)
     except:
         return None
@@ -252,25 +262,30 @@ def getMetadata(pid):
     except:
         pass
 
-    d['subjects'] = []
+    d['subjects'] = d['subjectsTree'] = []
     d['subjects'] = data.xpath('//td[text()="Local subject" or text()="Capt. Supp.Mat."]/../td[5]/text()')
-    # Campi spezzettati, spesso ridondanti
-    # d['subjectsTree'] = data.xpath('//td[text()="Subject-Top.Trm"]
+    d['subjectsTree'] = data.xpath('//td[text()="Subject-Top.Trm"]/../td[5]/text()')
 
     try:
+        d['geographicname'] = u""
+        d['yearfixed'] = u""
+        d['physical-a'] = d['physical-b'] = u""
+        d['general'] = u""
         d['yearfixed'] = re.search(
-            to_unicode(data.xpath('//td[text()="Fixed Data"]/../td[2]/text()')[0]),
-            r's([0-9]{4}) '
-        ).group(0)
+            r's([0-9]{4})\b',
+            to_unicode(data.xpath('//td[text()="Fixed Data"]/../td[2]/pre/text()')[0]),
+        ).group(1)
         d['geographicname'] = data.xpath('//td[text()="751"]/../td[5]/text()')[0]
-        d['physical'] = []
-        d['physical']['a'] = to_unicode(data.xpath('//td[text()="Physical Des."]/../td[5]/text()')[0])
-        d['physical']['b'] = to_unicode(data.xpath('//td[text()="Physical Des."]/../following-sibling::tr[position()=2]/td[3]/text()')[0])
+        d['physical-a'] = to_unicode(data.xpath('//td[text()="Physical Des."]/../td[5]/text()')[0])
+        d['physical-b'] = to_unicode(data.xpath('//td[text()="Physical Des."]/../following-sibling::tr[position()=2]/td[3]/text()')[0])
         d['general'] = data.xpath('//td[text()="General Note"]/../td[5]/text()')
     except:
         pass
 
-    d['sysno'] = to_unicode(data.xpath('//td[text()="System No."]/../td[5]/text()'))
+    # When system number isn't available, default to control number.
+    # (IT-MiFBE)mets.bibit.ia00372300 vs. MNG-90001438 + c. no. ID IT-MiFBE
+    d['sysno'] = to_unicode( ( data.xpath('//td[text()="System No."]/../td[5]/text()')
+        + data.xpath('//td[text()="Control No."]/../td[2]/pre/text()') )[0] )
     if d['sysno'] == []:
         d['sysno'] = u""
     d['pid'] = to_unicode(pid)
