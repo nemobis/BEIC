@@ -27,9 +27,10 @@ from kitchen.text.converters import to_unicode
 
 class BEICRobot:
 
-    def __init__(self, filename):
+    def __init__(self, filename, material=None):
         self.repo = pywikibot.Site('commons', 'commons')
         self.filename = filename
+        self.material = material
         if not os.path.exists(self.filename):
             pywikibot.output('Cannot find %s. Try providing the absolute path.'
                              % self.filename)
@@ -122,7 +123,36 @@ class BEICRobot:
         for sub in d['subjects']:
             categories = categories + u"[[Category:" + to_unicode(sub) + u"]]\n"
 
-        description = u"""{{Book
+        if self.material == 'photo':
+            description u"""
+{{Photograph
+ |photographer       = {{creator:Paolo Monti}}
+ |title              = %s
+ |description        = %s
+ |depicted people    = 
+ |depicted place     = %s
+ |date               = %s
+ |medium             = %s
+ |dimensions         = %s
+ |institution        = {{institution:BEIC}}
+ |department         =
+ |references         =
+ |object history     =
+ |exhibition history =
+ |credit line        =
+ |inscriptions       = %s
+ |notes              =
+ |accession number   = {{BEIC|pid= %s |id= %s }}
+ |source             =
+{{en|[http://www.beic.it/en/articles/digital-library BEIC digital library] - [http://www.beic.it/it/articoli/fondo-paolo-monti Fondo Paolo Monti]}}
+{{it|[http://www.beic.it/it/articoli/fondo-paolo-monti Biblioteca digitale BEIC] - [http://www.beic.it/it/articoli/fondo-paolo-monti Fondo Paolo Monti]}}
+ |permission         = {{cc-by-sa-4.0}}
+ |other_versions     =
+}}
+""" % ( d['title'], d['fulltitle'], d['geographicname'], d['yearfixed'], d['physical']['a'], d['physical']['b'],
+            d['general'], d['pid'], d['sysno'] )
+        else:
+            description = u"""{{Book
 |Author         = %s
 |Title          = %s
 |Publisher      = %s
@@ -259,12 +289,15 @@ def main(*args):
 
     # process all global bot args
     # returns a list of non-global args
+    material = None
     for arg in pywikibot.handle_args(args):
         if arg:
             if arg.startswith('-file'):
                 filename = arg[6:]
+            if arg.startswith('-photo'):
+                material = 'photo'
 
-    bot = BEICRobot(filename)
+    bot = BEICRobot(filename, material)
     bot.run(filename)
 
 if __name__ == "__main__":
