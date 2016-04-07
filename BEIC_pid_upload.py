@@ -189,7 +189,8 @@ class BEICRobot:
 
 %s""" % ( d['title'], d['fulltitle'], d['geographicname'], d['yearfixed'],
     d['physical-a'], d['physical-b'], d['sysno'], d['pid'], d['sysno'],
-    re.sub("\n\s+", "", "\n*" + "\n*".join(d['general'])), categories )
+    re.sub("\n\s+", "", "\n*" + "\n*".join(d['general'])),
+    re.sub("\n\s+", "", categories) )
 
         else:
             description = u"""{{Book
