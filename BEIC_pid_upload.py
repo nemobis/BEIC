@@ -219,6 +219,7 @@ class BEICRobot:
                                  useFilename=commons, keepFilename=True,
                                  verifyDescription=False, ignoreWarning=True, aborts=True)
             upload.run()
+            os.remove(path)
         except:
             pywikibot.output("ERROR: The upload could not be completed.")
 
@@ -294,7 +295,7 @@ def getMetadata(pid):
 
     d['subjects'] = d['subjectsTree'] = []
     d['subjects'] = data.xpath('//td[text()="Local subject" or text()="Capt. Supp.Mat."]/../td[5]/text()')
-    d['subjectsTree'] = data.xpath('//td[text()="Subject-Top.Trm"]/../td[5]/text()')
+    d['subjectsTree'] = data.xpath('//td[text()="Subject-Top.Trm" or text()="Indx Term Unco"]/../td[5]/text()')
 
     try:
         d['geographicname'] = u""
