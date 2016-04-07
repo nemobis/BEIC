@@ -9,7 +9,7 @@ Script to upload images from BEIC.it to Wikimedia Commons.
 #
 # Distributed under the terms of the MIT license.
 #
-__version__ = '0.1.3'
+__version__ = '0.1.4'
 #
 
 try:
@@ -30,10 +30,11 @@ from kitchen.text.converters import to_unicode
 
 class BEICRobot:
 
-    def __init__(self, filename, material=None):
+    def __init__(self, filename, material=None, method='local'):
         self.repo = pywikibot.Site('commons', 'commons')
         self.filename = filename
         self.material = material
+        self.method = method
         if not os.path.exists(self.filename):
             pywikibot.output('Cannot find %s. Try providing the absolute path.'
                              % self.filename)
@@ -52,31 +53,17 @@ class BEICRobot:
             return
 
         for row in titles:
-            if not (row.pid and row.path):
-                pywikibot.output("We can't do anything without PID and path, skip: " + row)
+            if not (row.pid):
+                pywikibot.output("We can't do anything without PID, skip: " + row)
+                continue
+            if self.method == 'local' and not row.path:
+                pywikibot.output("We can't do anything without path, skip: " + row)
                 continue
 
             pid = to_unicode(row.pid)
-            if os.path.isfile(row.path):
-               path = to_unicode(row.path)
-            else:
-                # Missing extension or other mistake?
-                dirname = os.path.abspath(os.path.dirname(row.path))
-                pywikibot.output("Will look for a file in directory: " + row.pid)
-                chance = [f for i, f in enumerate(os.listdir(dirname))
-                         if f.startswith(os.path.basename(row.path))]
-                if len(chance) == 1:
-                    path = to_unicode(dirname + "/" + chance[0])
-                    pywikibot.output("We found: " + path)
-                else:
-                    pywikibot.output("Exploring files with prefix " + os.path.basename(row.pid))
-                    chance = [f for i, f in enumerate(os.listdir(dirname))
-                          if f.startswith(os.path.basename(row.pid))]
-                    if len(chance) == 1:
-                        path = to_unicode(dirname + "/" + chance[0])
-                    else:
-                        pywikibot.output("Can't find nor guess file for PID: " + row.pid)
-                        path = False
+            if self.method == 'local':
+                path = self.getLocalPath(row)
+
 
             fid = u""
             note = u""
@@ -86,9 +73,32 @@ class BEICRobot:
             except:
                 pywikibot.output("Error while fetching note or fid")
 
-            if pid and path:
-                pywikibot.output("Going to process PID: " + pid)
-                self.processPID(pid, path, fid, note)
+        if pid and path:
+            pywikibot.output("Going to process PID: " + pid)
+            self.processPID(pid, path, fid, note)
+
+    def getLocalPath(self, row):
+        if os.path.isfile(row.path):
+           path = to_unicode(row.path)
+        else:
+            # Missing extension or other mistake?
+            dirname = os.path.abspath(os.path.dirname(row.path))
+            pywikibot.output("Will look for a file in directory: " + row.pid)
+            chance = [f for i, f in enumerate(os.listdir(dirname))
+                     if f.startswith(os.path.basename(row.path))]
+            if len(chance) == 1:
+                path = to_unicode(dirname + "/" + chance[0])
+                pywikibot.output("We found: " + path)
+            else:
+                pywikibot.output("Exploring files with prefix " + os.path.basename(row.pid))
+                chance = [f for i, f in enumerate(os.listdir(dirname))
+                      if f.startswith(os.path.basename(row.pid))]
+                if len(chance) == 1:
+                    path = to_unicode(dirname + "/" + chance[0])
+                else:
+                    pywikibot.output("Can't find nor guess file for PID: " + row.pid)
+                    path = False
+        return path
 
     def processPID(self, pid, path, fid=u"", note=u""):
         d = getMetadata(pid)
@@ -305,14 +315,17 @@ def main(*args):
     # process all global bot args
     # returns a list of non-global args
     material = None
+    method = 'local'
     for arg in pywikibot.handle_args(args):
         if arg:
             if arg.startswith('-file'):
                 filename = arg[6:]
             if arg.startswith('-photo'):
                 material = 'photo'
+            if arg.startswith('-download'):
+                method = 'download'
 
-    bot = BEICRobot(filename, material)
+    bot = BEICRobot(filename, material, method)
     bot.run(filename)
 
 if __name__ == "__main__":
