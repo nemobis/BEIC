@@ -20,6 +20,8 @@ try:
 except:
     pass
 import requests
+# Alternative but not shipped by default: https://pythonhosted.org/uritools/
+from urlparse import urljoin
 from lxml import html
 import sys
 import os
@@ -63,7 +65,8 @@ class BEICRobot:
             pid = to_unicode(row.pid)
             if self.method == 'local':
                 path = self.getLocalPath(row)
-
+            if self.method == 'download':
+                path = self.getFileFromPid(row)
 
             fid = u""
             note = u""
@@ -73,9 +76,11 @@ class BEICRobot:
             except:
                 pywikibot.output("Error while fetching note or fid")
 
-        if pid and path:
-            pywikibot.output("Going to process PID: " + pid)
-            self.processPID(pid, path, fid, note)
+            if pid and path:
+                pywikibot.output("Going to process PID: " + pid)
+                self.processPID(pid, path, fid, note)
+            else:
+                pywikibot.output("ERROR: PID or path missing")
 
     def getLocalPath(self, row):
         if os.path.isfile(row.path):
@@ -100,6 +105,21 @@ class BEICRobot:
                     path = False
         return path
 
+    def getFileFromPid(self, row):
+        pid = row.pid
+        digitool = requests.get("http://gutenberg.beic.it/webclient/DeliveryManager?pid=" + pid)
+        data = html.fromstring(digitool.text)
+        frame = data.xpath( '//frame[contains(@src,%s)]/@src' % pid )[0]
+        digitool = requests.get(urljoin(digitool.url, frame))
+        data = html.fromstring(digitool.text)
+        image = data.xpath( '//img[contains(@alt,%s)]/@src' % pid )[0]
+        content = requests.get(urljoin(digitool.url, image))
+        path = '/tmp/' + pid
+        pywikibot.output("DOWNLOAD %s to %s from %s" % (content.status_code, path, content.url))
+        with open(path, "wb") as local:
+            local.write(content.content)
+        return path
+
     def processPID(self, pid, path, fid=u"", note=u""):
         d = getMetadata(pid)
 
@@ -120,7 +140,7 @@ class BEICRobot:
             if self.material == 'photo':
                 if d['geographicname'] and d['yearfixed']:
                     d['title'] = "%s (%s, %s)" % ( d['title'], d['geographicname'], d['yearfixed'] )
-                commons = "%s - %s.jpg" % ( d['title'], pid)
+                commons = "Paolo Monti - %s - BEIC %s.jpg" % ( d['title'], pid)
             else:
                 # We can finally produce a filename it.wikisource likes!
                 commons = re.split("(,| :)", d['author'])[0] + u" - " + d['title'] \
