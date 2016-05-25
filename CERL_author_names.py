@@ -33,7 +33,8 @@ with open('authors-noCERL.csv', 'r') as csvauthors:
 	authors = csv.reader(csvauthors,
 						delimiter='\t',
 						lineterminator='\n',
-						quoting=csv.QUOTE_MINIMAL)
+						quoting=csv.QUOTE_MINIMAL,
+						encoding='utf-8')
 	header = next(authors)
 	if 'CERLid' not in header or 'CERLnames' not in header or 'ID' not in header:
 		print("FATAL ERROR: Some column headers are missing")
@@ -52,10 +53,15 @@ with open('authors-noCERL.csv', 'r') as csvauthors:
 	for row in authordata:
 		foundnames = u""
 		foundid = u""
-		keyword = re.sub(r"\W", " ", row.ID)
+		print "Current row: %s" % row.ID
+		keyword = re.sub("\W", " ", row.ID, flags=re.UNICODE)
 		records = searchName(keyword)
 		if not records:
-			records = searchName(re.sub(r"[0-9]", "", keyword))
+			keyword = re.sub("\W", " ", re.sub("\([^)]+\)", "", row.ID), flags=re.UNICODE)
+			records = searchName(keyword)
+			if not records:
+				keyword = re.sub("[0-9]", "", keyword)
+				records = searchName(keyword)
 
 		for record in records:
 			foundid += "%s\n" % re.search(r'(cnp[0-9]+)', record).group(1)
