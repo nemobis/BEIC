@@ -51,6 +51,14 @@ with open('EditoriPerNavigatore.csv', 'r') as csvfile:
 		if not pos:
 			indirizzo = "%s, %s, %s" % (row.Indirizzo, row.CAP, row.Comune)
 			via = "%s, %s, %s" % (re.sub('[0-9,]+', '', row.Indirizzo), row.CAP, row.Comune)
+			# La presenza della provincia non è garantita ma è richiesta a pena di errori PHP
+			if row.SiglaProvincia:
+				provincia = row.SiglaProvincia
+			else:
+				provincia = "MI"
+			# L'URL intero verrebbe reso con un errato "http//"
+			collegamento = re.sub('https?://', '', row.Collegamento)
+
 			geolocator = GoogleV3(api_key="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
 			# geopy.geocoders.Nominatim(user_agent="BEIC-APE-0.1", country_bias="Italy", timeout=5)
 			# geolocator = Mapzen(api_key="mapzen-zzzzzzz", user_agent="BEIC-APE-0.1", country_bias="Italy", timeout=1)
@@ -64,14 +72,15 @@ with open('EditoriPerNavigatore.csv', 'r') as csvfile:
 				lo = location.longitude
 				la = location.latitude
 			else:
-				lo = None
-				la = None
+				# Centro di Milano. L'importazione altrimenti mette gli editori all'equatore.
+				lo = 9.2
+				la = 45.4
 
 			mapdata.append( {
 				"produzione": [],
 				"cap": row.CAP,
-				"provincia": row.SiglaProvincia,
-				"catalogo": row.Collegamento,
+				"provincia": provincia,
+				"catalogo": collegamento,
 				"sito": row.SitoWeb,
 				"citta": row.Comune,
 				"name": row.Editore,
