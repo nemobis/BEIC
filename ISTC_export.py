@@ -27,10 +27,9 @@ with open('ISTC-holdings.csv', 'w') as csvfile:
         try:
             data = html.fromstring(page.text)
             # data.xpath("//h3[text()='Holdings']/following-sibling::div[position()=1]/span/text()")
-            location = data.xpath("//span[text()='Italy and Vatican City']/following-sibling::span/text()")[0]
-            # Brutal concatenation
-            location2 = " ".join(data.xpath("//span[text()='Italy and Vatican City'][1]/following-sibling::span//text()"))
-            opere.writerow([istcid, location, location2])
+            locations = data.xpath("//h3[text()='Holdings']/following-sibling::div[@class='ample-display-line']//span[contains(@class,'ample-display-content')]/text()")
+            for location in locations:
+                opere.writerow([istcid, location])
         except:
             continue
 
