@@ -38,6 +38,7 @@ for record in reader:
 			inv = record.get_fields('950')[0].get_subfields('e')[0]
 			subjects = record.get_fields('606', '676')
 			for subject in subjects:
+				# Extract the subfields as dictionary and concatenate them back
 				sl = subject.subfields
 				sc = u''
 				for i in range(0, len(sl)/2):
