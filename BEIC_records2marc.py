@@ -8,11 +8,13 @@ Script to convert a specific BEIC table format to a MARC XML file.
 #
 # Distributed under the terms of the MIT license.
 #
-__version__ = '0.1.0'
+__version__ = '0.2.0'
 #
 
 from collections import namedtuple
 import csv
+import datetime
+import hashlib
 from kitchen.text.converters import to_unicode, to_bytes
 from marcxml_parser import MARCXMLRecord
 from operator import attrgetter
@@ -20,16 +22,34 @@ import re
 import traceback
 from xml.sax.saxutils import escape
 
-with open('Alma.csv', 'rb') as csvrecords:
-	xmlout = open('Records.xml', 'w+')
-	xmlout.write('<?xml version="1.0" encoding="UTF-8"?>\n'
-		+ '<collection xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-		+ 'xsi:schemaLocation="http://www.loc.gov/MARC21/slim '
-		+ 'http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd" '
-		+ 'xmlns="http://www.loc.gov/MARC21/slim">\n')
+def createEmptyAuthority(topical=False, classification=False):
+	record = MARCXMLRecord('<record><controlfield tag="001">999authority999</controlfield></record>')
+	record.leader = '00000nz  a2200000n  4500'
+	record.add_ctl_field('003', 'IT-MiFBE')
+	record.add_ctl_field('005', datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S.0'))
+	fixed = ' ||a||||a|||          ||a|||||| d'
+	if topical:
+		fixed = ' ||a|||||a||          ||a|||||| d'
+	if classification:
+		fixed = 'aaaaaaba'
+		record.add_data_field('084', '0', ' ', {'a': 'ddc', 'c': 'WebDewey', 'q': 'IT-MiFBE', 'e': 'ita' })
+	record.add_ctl_field('008', datetime.datetime.utcnow().strftime('%y%m%d') + fixed)
+	record.add_data_field('040', ' ', ' ', {'a': 'IT-MiFBE', 'b': 'ita', 'c': 'IT-MiFBE', 'e': 'reicat' })
+	return record
+
+def getXmlHeader():
+	return '<?xml version="1.0" encoding="UTF-8"?>\n'
+	+ '<collection xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
+	+ 'xsi:schemaLocation="http://www.loc.gov/MARC21/slim '
+	+ 'http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd" '
+	+ 'xmlns="http://www.loc.gov/MARC21/slim">\n'
+
+with open('BibliographicRecords.csv', 'rb') as csvrecords:
+	xmlout = open('BibliographicRecords.xml', 'w+')
+	xmlout.write(getXmlHeader())
 
 	records = csv.reader(csvrecords,
-		delimiter=b',',
+		delimiter=b'\t',
 		lineterminator='\n',
 		quoting=csv.QUOTE_MINIMAL,
 		#encoding='utf-8'
@@ -42,6 +62,9 @@ with open('Alma.csv', 'rb') as csvrecords:
 
 	# Initiate with empty data
 	controlnumber = None
+	authorities = {}
+	for field in ['100', '110', '111', '130', '150', '151', '153']:
+		authorities[field] = {}
 	for row in recordsdata:
 		if row.NumeroDiControllo != controlnumber:
 			# If the control number is not empty, one record is ready and the next is being read
@@ -67,14 +90,14 @@ with open('Alma.csv', 'rb') as csvrecords:
 			currentrecord = MARCXMLRecord('<record><controlfield tag="001">999test999</controlfield></record>')
 			controlnumber = row.NumeroDiControllo
 
-		field = row.CodiceCampoOriginale
+		field = row.CodiceCampo or row.CodiceCampoOriginale
+		subfieldsraw = row.Sottocampi or row.SottocampiOriginali
 		# The source storage replaces spaces with slashes
-		subfields = row.Sottocampi or row.SottocampiOriginali
 		try:
-			subfield = re.sub(r'\\', ' ', subfields)
+			subfield = re.sub(r'\\', ' ', subfieldsraw)
 		except UnicodeDecodeError:
 			print 'ERROR: Could not remove slashes'
-			print subfields
+			print subfieldsraw
 			continue
 
 		if field in ['LDR', '001', '003', '005', '007', '008']:
@@ -83,7 +106,7 @@ with open('Alma.csv', 'rb') as csvrecords:
 				currentrecord.leader = subfield
 		else:
 			# Split a string like '$aIT-MiFBE$bita$ereicat' into fields
-			subfields = re.split('\$([a-z0-9])', subfield)
+			subfields = re.split('\$([a-z0-9])', subfieldsraw)
 			subdict = {}
 			for i in range(1, len(subfields)/2+1):
 				# Convert to bytes and escape "&": marcxml_parser does not do it
@@ -95,9 +118,65 @@ with open('Alma.csv', 'rb') as csvrecords:
 			# Avoid: ValueError: `subfields_dict` have to contain something!
 			try:
 				currentrecord.add_data_field( field, i1, i2, subdict )
+				if field in ['100', '700']:
+					authorities['100'][subfieldsraw] = subdict
+				if field in ['110', '710', '852']:
+					authorities['110'][subfieldsraw] = subdict
+				if field in ['111']:
+					authorities['111'][subfieldsraw] = subdict
+				if field in ['130', '240', '730', '830']:
+					authorities['130'][subfieldsraw] = subdict
+				if field in ['650', '654']:
+					authorities['150'][subfieldsraw] = subdict
+				if field in ['751']:
+					authorities['151'][subfieldsraw] = subdict
+				if field in ['082']:
+					authorities['153'][subfieldsraw] = subdict
 			except ValueError:
 				print 'WARNING: Could not add one field'
 				continue
 
 	xmlout.write('</collection>\n')
 	xmlout.close()
+
+with open('Authority.xml', 'w+') as xmlauth:
+	xmlauth.write(getXmlHeader())
+	for field in authorities:
+		for authority in authorities[field]:
+			subfields = authorities[field][authority]
+			record = createEmptyAuthority(
+				topical=(field == '150'),
+				classification=(field == '153')
+			)
+			i1 = subfields.pop('ind1', ' ')
+			i2 = subfields.pop('ind2', ' ')
+			# Remove subfields which don't apply within authority records.
+			no = subfields.pop('4', '')
+			if field in ['150', '151', '153']:
+				no = subfields.pop('2', '')
+			if field in ['153']:
+				no = subfields.pop('q', '')
+			if field in ['150', '153']:
+				i1 = i2 = ' '
+			if field in ['153']:
+				try:
+					subs = subfields.pop('9', '')[0].split('. ')
+				except:
+					subs = None
+				if subs:
+					subfields['j'] = subs.pop()
+					for sub in subs:
+						# FIXME: Allow multiple
+						subfields['h'] = sub
+
+			try:
+				record.add_data_field(field, i1, i2, subfields)
+				record.add_ctl_field('001', to_bytes(hashlib.md5(str(subfields)).hexdigest()))
+				xmlauth.write(record.to_XML())
+			except KeyError:
+				print "No buono!"
+				print subfields
+			except ValueError:
+				print "ERROR: Empty subfields!"
+				print subfields
+	xmlauth.write('</collection>\n')
