@@ -121,6 +121,9 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 				if field in ['100', '700']:
 					authorities['100'][subfieldsraw] = subdict
 				if field in ['110', '710', '852']:
+					no = subdict.pop('e', '')
+					no = subdict.pop('n', '')
+					no = subdict.pop('j', '')
 					authorities['110'][subfieldsraw] = subdict
 				if field in ['111']:
 					authorities['111'][subfieldsraw] = subdict
@@ -165,9 +168,10 @@ with open('Authority.xml', 'w+') as xmlauth:
 					subs = None
 				if subs:
 					subfields['j'] = subs.pop()
+					subfields['h'] = []
 					for sub in subs:
 						# FIXME: Allow multiple
-						subfields['h'] = sub
+						subfields['h'].append(subs.pop())
 
 			try:
 				record.add_data_field(field, i1, i2, subfields)
