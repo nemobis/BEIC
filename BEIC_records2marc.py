@@ -18,6 +18,7 @@ import hashlib
 from kitchen.text.converters import to_unicode, to_bytes
 from marcxml_parser import MARCXMLRecord
 from operator import attrgetter
+import pickle
 import re
 import traceback
 from xml.sax.saxutils import escape
@@ -111,6 +112,7 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 			for i in range(1, len(subfields)/2+1):
 				# Convert to bytes and escape "&": marcxml_parser does not do it
 				subdict.update({subfields[i*2-1]: to_bytes(escape(subfields[i*2]))})
+				subdictindex = pickle.dumps(subdict)
 
 			i1 = re.sub(r'\\', ' ', row.Indicatore1 or row.Indicatore1Originale) or ' '
 			i2 = re.sub(r'\\', ' ', row.Indicatore2 or row.Indicatore2Originale) or ' '
@@ -119,22 +121,24 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 			try:
 				currentrecord.add_data_field( field, i1, i2, subdict )
 				if field in ['100', '700']:
-					authorities['100'][subfieldsraw] = subdict
+					authorities['100'][subdictindex] = subdict
 				if field in ['110', '710', '852']:
+					no = subdict.pop('4', '')
 					no = subdict.pop('e', '')
 					no = subdict.pop('n', '')
 					no = subdict.pop('j', '')
-					authorities['110'][subfieldsraw] = subdict
+					subdictindex = pickle.dumps(subdict)
+					authorities['110'][subdictindex] = subdict
 				if field in ['111']:
-					authorities['111'][subfieldsraw] = subdict
+					authorities['111'][subdictindex] = subdict
 				if field in ['130', '240', '730', '830']:
-					authorities['130'][subfieldsraw] = subdict
+					authorities['130'][subdictindex] = subdict
 				if field in ['650', '654']:
-					authorities['150'][subfieldsraw] = subdict
+					authorities['150'][subdictindex] = subdict
 				if field in ['751']:
-					authorities['151'][subfieldsraw] = subdict
+					authorities['151'][subdictindex] = subdict
 				if field in ['082']:
-					authorities['153'][subfieldsraw] = subdict
+					authorities['153'][subdictindex] = subdict
 			except ValueError:
 				print 'WARNING: Could not add one field'
 				continue
