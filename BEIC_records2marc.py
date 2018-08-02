@@ -33,6 +33,7 @@ def createEmptyAuthority(topical=False, classification=False):
 		fixed = ' ||a|||||a||          ||a|||||| d'
 	if classification:
 		fixed = 'aaaaaaba'
+		record.leader = '00000nw  a2200000n  4500'
 		record.add_data_field('084', '0', ' ', {'a': 'ddc', 'c': 'WebDewey', 'q': 'IT-MiFBE', 'e': 'ita' })
 	record.add_ctl_field('008', datetime.datetime.utcnow().strftime('%y%m%d') + fixed)
 	record.add_data_field('040', ' ', ' ', {'a': 'IT-MiFBE', 'b': 'ita', 'c': 'IT-MiFBE', 'e': 'reicat' })
@@ -67,6 +68,8 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 	for field in ['100', '110', '111', '130', '150', '151', '153']:
 		authorities[field] = {}
 	for row in recordsdata:
+		if row.Escludere == "1":
+			continue
 		if row.NumeroDiControllo != controlnumber:
 			# If the control number is not empty, one record is ready and the next is being read
 			if controlnumber:
@@ -119,7 +122,10 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 			# Avoid: ValueError: Invalid i2 parameter 'h'!
 			# Avoid: ValueError: `subfields_dict` have to contain something!
 			try:
+				# Continue adding data to the bibliographic record, to be picked up
+				# later and written out to XML above when no more data is found.
 				currentrecord.add_data_field( field, i1, i2, subdict )
+				# Switch to collecting data for authorities
 				if field in ['100', '700']:
 					authorities['100'][subdictindex] = subdict
 				if field in ['110', '710', '852']:
@@ -127,6 +133,9 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 					no = subdict.pop('e', '')
 					no = subdict.pop('n', '')
 					no = subdict.pop('j', '')
+					if field in ['852']:
+						subdict['ind1'] = '2'
+						subdict['ind2'] = ' '
 					subdictindex = pickle.dumps(subdict)
 					authorities['110'][subdictindex] = subdict
 				if field in ['111']:
@@ -159,6 +168,9 @@ with open('Authority.xml', 'w+') as xmlauth:
 			i2 = subfields.pop('ind2', ' ')
 			# Remove subfields which don't apply within authority records.
 			no = subfields.pop('4', '')
+			if field in ['130']:
+				i1 = ' '
+				i2 = '0'
 			if field in ['150', '151', '153']:
 				no = subfields.pop('2', '')
 			if field in ['153']:
