@@ -24,7 +24,7 @@ with open('BEIC-opere.csv', 'w') as csvfile:
                        lineterminator='\n',
                        quoting=csv.QUOTE_MINIMAL,
                        encoding='utf-8')
-    opere.writerow(['Autore', 'Opera', 'Collezione', 'PID', 'System No.', 'IA', 'URL', 'Metadati'])
+    opere.writerow(['Autore', 'Opera', 'Citazione', 'Collezione', 'Soggetti', 'PID', 'System No.', 'IA', 'URL', 'Metadati'])
     # Esempio per elencare i PID di tutti i METS in DigiTool:
     # ssh dtl@atena.beic.it 'find /exlibris/dtl/j3_1/digitool/home/profile/work/ -maxdepth 1 -name "*.xml" | grep -Eo "\b[0-9]+\b"' > BEIC-pids.txt
     for pid in open('BEIC-pids.txt', 'r').read().strip().splitlines():
@@ -46,10 +46,12 @@ with open('BEIC-opere.csv', 'w') as csvfile:
         print "Writing metadata for PID: " + pid
         opere.writerow([to_bytes(d['author']),
                         to_bytes(d['title']),
+                        to_bytes(d['fulltitle']),
                         to_bytes('; '.join(d['subjects'])),
+                        to_bytes('; '.join(d['subjectsTree'])),
                         to_bytes(d['pid']),
                         to_bytes(d['sysno']),
                         to_bytes(ia),
-                        to_bytes('http://gutenberg.beic.it/webclient/DeliveryManager?pid=' + d['pid']),
-                        to_bytes('http://131.175.183.15/webclient/MetadataManager?descriptive_only=true&pid=' + d['pid'])
+                        to_bytes('https://gutenberg.beic.it/webclient/DeliveryManager?pid=' + d['pid']),
+                        to_bytes('https://gutenberg.beic.it/webclient/MetadataManager?descriptive_only=true&pid=' + d['pid'])
                         ])
