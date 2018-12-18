@@ -1,8 +1,12 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 """
-Script to convert a MARCXML dump into a series of XML files à la OAI-PMH.
-Tested with input MARCXML made by yaz-marcdump from SbnWeb binary MARC export.
+Script to wrap records from a MARCXML dump into a series of XML files à la OAI-PMH.
+Tested with input MARCXML made by yaz-marcdump from SbnWeb binary MARC export, like:
+$ yaz-marcdump -f utf8 -t utf8 -i marc -o marcxml in.clean.mrc > out.xml
+Control character are left:
+$ grep '[[:cntrl:]][HI]' in.marc
+
 Usage: ./BEIC_marcxml2oaipmh.py <input.xml> <outprefix>
 """
 #
@@ -15,6 +19,7 @@ __version__ = '0.1.0'
 
 from datetime import datetime
 from lxml import etree
+import re
 import sys
 
 def getOaiHeader():
@@ -50,6 +55,10 @@ if __name__ == '__main__':
 		if event == "end" and elem.tag.endswith("controlfield") and "001" in elem.attrib.values():
 			curidentifier = elem.text
 			print "Found identifier {}".format(curidentifier)
+		if event == "end" and elem.tag.endswith("subfield") and "a" in elem.attrib.values() and elem.text:
+			# The "asterisk" for sorting is given as two prefixes [[:cntrl:]][HI] in
+			# the original MRC, but control characters are removed in XML conversion
+			elem.text = re.sub(r"H([A-Z\d\[\]].*\W)I(\w)", r"\1\2", elem.text, re.UNICODE)
 		if event == "end" and elem.tag.endswith("record"):
 			recordcount += 1
 			if recordcount % 1000 == 0:
