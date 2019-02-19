@@ -66,6 +66,10 @@ if __name__ == '__main__':
 				oai.write(getOaiFooter())
 				oai = makeOutputFile(recordcount)
 
-			oai.write(makeWrappedRecord(curidentifier, etree.tostring(elem)))
+			fullrecord = etree.tostring(elem)
+			if re.findall("<leader>.{6}us", fullrecord):
+				# È una collana, non serve visualizzare
+				continue
+			oai.write(makeWrappedRecord(curidentifier, fullrecord))
 			elem.clear()
 			curidentifier = ''
