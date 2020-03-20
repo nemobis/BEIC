@@ -141,9 +141,10 @@ def main():
 							subdict.remove('n')
 						if 'j' in subdict:
 							subdict.remove('j')
-						if field in ['852']:
-							subdict['ind1'] = '2'
-							subdict['ind2'] = ' '
+						#FIXME: reimplement for the list
+						#if field in ['852']:
+						#	subdict['ind1'] = '2'
+						#	subdict['ind2'] = ' '
 						subdictindex = pickle.dumps(subdict)
 						authorities['110'][subdictindex] = subdict
 					if field in ['111']:
