@@ -117,7 +117,8 @@ def main():
 				# Split a string like '$aIT-MiFBE$bita$ereicat' into fields
 				subdict = re.split('\$([a-z0-9])', subfieldsraw)
 				# Remove the first empty string from before the dollar sign
-				subdict.remove('')
+				if '' in subdict:
+					subdict.remove('')
 				subdictindex = subfieldsraw # FIXME: hash
 
 				i1 = re.sub(r'\\', ' ', row.Indicatore1 or row.Indicatore1Originale) or ' '
@@ -132,10 +133,14 @@ def main():
 					if field in ['100', '700']:
 						authorities['100'][subdictindex] = subdict
 					if field in ['110', '710', '852']:
-						subdict.remove('4')
-						subdict.remove('e')
-						subdict.remove('n')
-						subdict.remove('j')
+						if '4' in subdict:
+							subdict.remove('4')
+						if 'e' in subdict:
+							subdict.remove('e')
+						if 'n' in subdict:
+							subdict.remove('n')
+						if 'j' in subdict:
+							subdict.remove('j')
 						if field in ['852']:
 							subdict['ind1'] = '2'
 							subdict['ind2'] = ' '
