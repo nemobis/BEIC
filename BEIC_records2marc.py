@@ -16,7 +16,7 @@ import csv
 import datetime
 import hashlib
 from kitchen.text.converters import to_unicode, to_bytes
-from marcxml_parser import MARCXMLRecord
+from pymarc import Record, Field, XMLWriter
 from operator import attrgetter
 import pickle
 import re
@@ -24,31 +24,31 @@ import traceback
 from xml.sax.saxutils import escape
 
 def createEmptyAuthority(topical=False, classification=False):
-	record = MARCXMLRecord('<record><controlfield tag="001">999authority999</controlfield></record>')
-	record.leader = '00000nz  a2200000n  4500'
-	record.add_ctl_field('003', 'IT-MiFBE')
-	record.add_ctl_field('005', datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S.0'))
+	leader = '00000nz  a2200000n  4500'
 	fixed = ' ||a||||a|||          ||a|||||| d'
 	if topical:
 		fixed = ' ||a|||||a||          ||a|||||| d'
 	if classification:
 		fixed = 'aaaaaaba'
-		record.leader = '00000nw  a2200000n  4500'
-		record.add_data_field('084', '0', ' ', {'a': 'ddc', 'c': 'WebDewey', 'q': 'IT-MiFBE', 'e': 'ita' })
-	record.add_ctl_field('008', datetime.datetime.utcnow().strftime('%y%m%d') + fixed)
-	record.add_data_field('040', ' ', ' ', {'a': 'IT-MiFBE', 'b': 'ita', 'c': 'IT-MiFBE', 'e': 'reicat' })
-	return record
+		leader = '00000nw  a2200000n  4500'
 
-def getXmlHeader():
-	return '<?xml version="1.0" encoding="UTF-8"?>\n'
-	+ '<collection xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" '
-	+ 'xsi:schemaLocation="http://www.loc.gov/MARC21/slim '
-	+ 'http://www.loc.gov/standards/marcxml/schema/MARC21slim.xsd" '
-	+ 'xmlns="http://www.loc.gov/MARC21/slim">\n'
+	record = Record(leader=leader)
+	record.add_field( Field(tag='001', data='999test999') )
+	record.add_field( Field(tag='003', data='IT-MiFBE') )
+	record.add_field( Field(tag='005', data=datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S.0') )
+	record.add_field( Field(tag='008', data=(datetime.datetime.utcnow().strftime('%y%m%d') + fixed)) )
+	if classification:
+		record.add_field( Field(tag='084',
+						indicators=['0', ' '],
+						subfields = ['a', 'ddc', 'c', 'WebDewey', 'q', 'IT-MiFBE', 'e', 'ita' ] ) )
+	record.add_field( Field(tag='040',
+						indicators=[' ', ' '],
+						subfields = ['a', 'IT-MiFBE', 'b', 'ita', 'c', 'IT-MiFBE', 'e', 'reicat' ] ) )
+	return record
 
 with open('BibliographicRecords.csv', 'rb') as csvrecords:
 	xmlout = open('BibliographicRecords.xml', 'w+')
-	xmlout.write(getXmlHeader())
+	writer = XMLWriter(xmlout)
 
 	records = csv.reader(csvrecords,
 		delimiter=b'\t',
@@ -73,16 +73,16 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 		if row.NumeroDiControllo != controlnumber:
 			# If the control number is not empty, one record is ready and the next is being read
 			if controlnumber:
-				currentrecordcontrol = currentrecord.get_ctl_field('001')
+				currentrecordcontrol = currentrecord.get_fields('001')
 				try:
 					if currentrecordcontrol != "999test999":
 						# The record must have either a 130 or a 240
 						# and also either 654, 690 or 854
-						xmlout.write(currentrecord.to_XML())
-						print "INFO: Exported %s" % currentrecordcontrol
-						if '130' not in currentrecord.datafields and '240' not in currentrecord.datafields:
+						writer.write(currentrecord)
+						print "INFO: Exported %s" % currentrecordcontrol # FIXME check  get_fields
+						if '130' not in currentrecord.get_fields() and '240' not in currentrecord.get_fields():
 							print "WARNING: the record had no 240 nor 130 field"
-						if '654' not in currentrecord.datafields and '690' not in currentrecord.datafields and '854' not in currentrecord.datafields:
+						if '654' not in currentrecord.get_fields() and '690' not in currentrecord.get_fields() and '854' not in currentrecord.get_fields():
 							print "WARNING: the record had no 654, 690 or 854 field"
 					else:
 						print 'WARNING: Test data left, had to skip'
@@ -91,7 +91,8 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 					print(traceback.format_exc())
 
 			# Prepare empty new record and switch to the current control number
-			currentrecord = MARCXMLRecord('<record><controlfield tag="001">999test999</controlfield></record>')
+			currentrecord = Record()
+			currentrecord.add_field( Field(tag='001', data='999test999') )
 			controlnumber = row.NumeroDiControllo
 
 		field = row.CodiceCampo or row.CodiceCampoOriginale
@@ -105,17 +106,15 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 			continue
 
 		if field in ['LDR', '001', '003', '005', '007', '008']:
-			currentrecord.add_ctl_field(field, to_bytes(subfield))
+			currentrecord.add_field( Field(tag=field, data=to_bytes(subfield)))
 			if field == 'LDR':
 				currentrecord.leader = subfield
 		else:
 			# Split a string like '$aIT-MiFBE$bita$ereicat' into fields
-			subfields = re.split('\$([a-z0-9])', subfieldsraw)
-			subdict = {}
-			for i in range(1, len(subfields)/2+1):
-				# Convert to bytes and escape "&": marcxml_parser does not do it
-				subdict.update({subfields[i*2-1]: to_bytes(escape(subfields[i*2]))})
-				subdictindex = pickle.dumps(subdict)
+			subdict = re.split('\$([a-z0-9])', subfieldsraw)
+			# Remove the first empty string from before the dollar sign
+			subdict.remove('')
+			subdictindex = subfieldsraw # FIXME: hash
 
 			i1 = re.sub(r'\\', ' ', row.Indicatore1 or row.Indicatore1Originale) or ' '
 			i2 = re.sub(r'\\', ' ', row.Indicatore2 or row.Indicatore2Originale) or ' '
@@ -124,7 +123,7 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 			try:
 				# Continue adding data to the bibliographic record, to be picked up
 				# later and written out to XML above when no more data is found.
-				currentrecord.add_data_field( field, i1, i2, subdict )
+				currentrecord.add_field( Field( tag=field, indicators=[i1, i2], subfields=subdict ) )
 				# Switch to collecting data for authorities
 				if field in ['100', '700']:
 					authorities['100'][subdictindex] = subdict
@@ -152,11 +151,10 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 				print 'WARNING: Could not add one field'
 				continue
 
-	xmlout.write('</collection>\n')
-	xmlout.close()
+	writer.close()
 
 with open('Authority.xml', 'w+') as xmlauth:
-	xmlauth.write(getXmlHeader())
+	writer = XMLWriter(xmlauth)
 	for field in authorities:
 		for authority in authorities[field]:
 			subfields = authorities[field][authority]
@@ -190,13 +188,13 @@ with open('Authority.xml', 'w+') as xmlauth:
 						subfields['h'].append(subs.pop())
 
 			try:
-				record.add_data_field(field, i1, i2, subfields)
-				record.add_ctl_field('001', to_bytes(hashlib.md5(str(subfields)).hexdigest()))
-				xmlauth.write(record.to_XML())
+				record.add_field( Field(tag=field, indicators=[i1, i2], subfields=subfields)
+				record.add_field( Field(tag='001', data=to_bytes(hashlib.md5(str(subfields)).hexdigest()))
+				writer.write(record)
 			except KeyError:
 				print "No buono!"
 				print subfields
 			except ValueError:
 				print "ERROR: Empty subfields!"
 				print subfields
-	xmlauth.write('</collection>\n')
+	writer.close()
