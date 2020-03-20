@@ -35,8 +35,9 @@ def createEmptyAuthority(topical=False, classification=False):
 	record = Record(leader=leader)
 	record.add_field( Field(tag='001', data='999test999') )
 	record.add_field( Field(tag='003', data='IT-MiFBE') )
-	record.add_field( Field(tag='005', data=datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S.0') )
+	record.add_field( Field(tag='005', data=datetime.datetime.utcnow().strftime('%Y%m%d%H%M%S.0') ) )
 	record.add_field( Field(tag='008', data=(datetime.datetime.utcnow().strftime('%y%m%d') + fixed)) )
+
 	if classification:
 		record.add_field( Field(tag='084',
 						indicators=['0', ' '],
@@ -80,15 +81,15 @@ def main():
 							# The record must have either a 130 or a 240
 							# and also either 654, 690 or 854
 							writer.write(currentrecord)
-							print "INFO: Exported %s" % currentrecordcontrol # FIXME check  get_fields
+							print("INFO: Exported %s" % currentrecordcontrol) # FIXME check  get_fields
 							if '130' not in currentrecord.get_fields() and '240' not in currentrecord.get_fields():
-								print "WARNING: the record had no 240 nor 130 field"
+								print("WARNING: the record had no 240 nor 130 field")
 							if '654' not in currentrecord.get_fields() and '690' not in currentrecord.get_fields() and '854' not in currentrecord.get_fields():
-								print "WARNING: the record had no 654, 690 or 854 field"
+								print("WARNING: the record had no 654, 690 or 854 field")
 						else:
-							print 'WARNING: Test data left, had to skip'
+							print('WARNING: Test data left, had to skip')
 					except:
-						print 'WARNING: Parser failure, had to skip'
+						print('WARNING: Parser failure, had to skip')
 						print(traceback.format_exc())
 
 				# Prepare empty new record and switch to the current control number
@@ -102,8 +103,8 @@ def main():
 			try:
 				subfield = re.sub(r'\\', ' ', subfieldsraw)
 			except UnicodeDecodeError:
-				print 'ERROR: Could not remove slashes'
-				print subfieldsraw
+				print('ERROR: Could not remove slashes')
+				print(subfieldsraw)
 				continue
 
 			if field in ['LDR', '001', '003', '005', '007', '008']:
@@ -149,7 +150,7 @@ def main():
 					if field in ['082']:
 						authorities['153'][subdictindex] = subdict
 				except ValueError:
-					print 'WARNING: Could not add one field'
+					print('WARNING: Could not add one field')
 					continue
 
 		writer.close()
@@ -189,15 +190,15 @@ def main():
 							subfields['h'].append(subs.pop())
 
 				try:
-					record.add_field( Field(tag=field, indicators=[i1, i2], subfields=subfields)
-					record.add_field( Field(tag='001', data=to_bytes(hashlib.md5(str(subfields)).hexdigest()))
+					record.add_field( Field(tag=field, indicators=[i1, i2], subfields=subfields) )
+					record.add_field( Field(tag='001', data=to_bytes(hashlib.md5(str(subfields)).hexdigest())) )
 					writer.write(record)
 				except KeyError:
-					print "No buono!"
-					print subfields
+					print("No buono!")
+					print(subfields)
 				except ValueError:
-					print "ERROR: Empty subfields!"
-					print subfields
+					print("ERROR: Empty subfields!")
+					print(subfields)
 		writer.close()
 
 
