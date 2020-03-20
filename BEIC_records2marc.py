@@ -48,6 +48,8 @@ def createEmptyAuthority(topical=False, classification=False):
 	return record
 
 def main():
+	# Assumes CSV file in the same format as produced by one BEIC DB
+	# mdb-export -d"\t" input.accdb BibliographicRecords > BibliographicRecords.csv
 	with open('BibliographicRecords.csv', 'rb') as csvrecords:
 		xmlout = open('BibliographicRecords.xml', 'w+')
 		writer = XMLWriter(xmlout)
@@ -107,10 +109,10 @@ def main():
 				print(subfieldsraw)
 				continue
 
-			if field in ['LDR', '001', '003', '005', '007', '008']:
-				currentrecord.add_field( Field(tag=field, data=to_bytes(subfield)))
-				if field == 'LDR':
-					currentrecord.leader = subfield
+			if field in ['001', '003', '005', '007', '008']:
+				currentrecord.add_field( Field(tag=field, data=subfield))
+			elif field == 'LDR':
+				currentrecord.leader = subfield
 			else:
 				# Split a string like '$aIT-MiFBE$bita$ereicat' into fields
 				subdict = re.split('\$([a-z0-9])', subfieldsraw)
