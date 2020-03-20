@@ -77,16 +77,16 @@ def main():
 			if row.NumeroDiControllo != controlnumber:
 				# If the control number is not empty, one record is ready and the next is being read
 				if controlnumber:
-					currentrecordcontrol = currentrecord.get_fields('001')
+					currentrecordcontrol = currentrecord.get_fields('001')[0].value()
 					try:
 						if currentrecordcontrol != "999test999":
 							# The record must have either a 130 or a 240
 							# and also either 654, 690 or 854
 							writer.write(currentrecord)
 							print("INFO: Exported %s" % currentrecordcontrol) # FIXME check  get_fields
-							if '130' not in currentrecord.get_fields() and '240' not in currentrecord.get_fields():
+							if '130' not in currentrecord and '240' not in currentrecord:
 								print("WARNING: the record had no 240 nor 130 field")
-							if '654' not in currentrecord.get_fields() and '690' not in currentrecord.get_fields() and '854' not in currentrecord.get_fields():
+							if '654' not in currentrecord and '690' not in currentrecord and '854' not in currentrecord:
 								print("WARNING: the record had no 654, 690 or 854 field")
 						else:
 							print('WARNING: Test data left, had to skip')
