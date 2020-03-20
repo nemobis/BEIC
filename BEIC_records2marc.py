@@ -132,10 +132,10 @@ def main():
 					if field in ['100', '700']:
 						authorities['100'][subdictindex] = subdict
 					if field in ['110', '710', '852']:
-						no = subdict.pop('4', '')
-						no = subdict.pop('e', '')
-						no = subdict.pop('n', '')
-						no = subdict.pop('j', '')
+						subdict.remove('4')
+						subdict.remove('e')
+						subdict.remove('n')
+						subdict.remove('j')
 						if field in ['852']:
 							subdict['ind1'] = '2'
 							subdict['ind2'] = ' '
