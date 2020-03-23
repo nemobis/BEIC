@@ -85,6 +85,7 @@ def main():
 							# The record must have either a 130 or a 240
 							# and also either 654, 690 or 854
 							writer.write(currentrecord)
+							xmlout.write(b'\n')
 							print("INFO: Exported %s" % currentrecordcontrol) # FIXME check  get_fields
 							# All records are expected to have certain fields, except components (CMP- and ART-).
 							if 'CMP' not in currentrecordcontrol and 'ART' not in currentrecordcontrol:
