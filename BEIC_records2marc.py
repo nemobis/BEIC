@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Script to convert a specific BEIC table format to a MARC XML file.
@@ -50,12 +50,12 @@ def createEmptyAuthority(topical=False, classification=False):
 def main():
 	# Assumes CSV file in the same format as produced by one BEIC DB
 	# mdb-export -d"\t" input.accdb BibliographicRecords > BibliographicRecords.csv
-	with open('BibliographicRecords.csv', 'rb') as csvrecords:
-		xmlout = open('BibliographicRecords.xml', 'w+')
+	with open('BibliographicRecords.csv', 'r') as csvrecords:
+		xmlout = open('BibliographicRecords.xml', 'wb+')
 		writer = XMLWriter(xmlout)
 
 		records = csv.reader(csvrecords,
-			delimiter=b'\t',
+			delimiter='\t',
 			lineterminator='\n',
 			quoting=csv.QUOTE_MINIMAL,
 			#encoding='utf-8'
@@ -64,10 +64,12 @@ def main():
 		print("Header of the input table: %s" % ', '.join(header) )
 		recordsdata = namedtuple('recordsdata', ', '.join(header))
 		recordsdata = [recordsdata._make(row) for row in records]
+		# The input table is not sorted but we read it sequentially by control number
 		recordsdata = sorted(recordsdata, key=attrgetter('NumeroDiControllo'))
 
 		# Initiate with empty data
 		controlnumber = None
+		currentrecord = None
 		authorities = {}
 		for field in ['100', '110', '111', '130', '150', '151', '153']:
 			authorities[field] = {}
@@ -76,7 +78,7 @@ def main():
 				continue
 			if row.NumeroDiControllo != controlnumber:
 				# If the control number is not empty, one record is ready and the next is being read
-				if controlnumber:
+				if currentrecord and controlnumber:
 					currentrecordcontrol = currentrecord.get_fields('001')[0].value()
 					try:
 						if currentrecordcontrol != "999test999":
@@ -84,14 +86,17 @@ def main():
 							# and also either 654, 690 or 854
 							writer.write(currentrecord)
 							print("INFO: Exported %s" % currentrecordcontrol) # FIXME check  get_fields
-							if '130' not in currentrecord and '240' not in currentrecord:
-								print("WARNING: the record had no 240 nor 130 field")
-							if '654' not in currentrecord and '690' not in currentrecord and '854' not in currentrecord:
-								print("WARNING: the record had no 654, 690 or 854 field")
+							# All records are expected to have certain fields, except components (CMP- and ART-).
+							if 'CMP' not in currentrecordcontrol and 'ART' not in currentrecordcontrol:
+								if '130' not in currentrecord and '240' not in currentrecord:
+									print("WARNING: the record had no 240 nor 130 field")
+								if '654' not in currentrecord and '690' not in currentrecord and '854' not in currentrecord:
+									print("WARNING: the record had no 654, 690 or 854 field")
 						else:
-							print('WARNING: Test data left, had to skip')
+							print('ERROR: Test data left, had to skip')
 					except:
-						print('WARNING: Parser failure, had to skip')
+						print('ERROR: Parser failure, had to skip')
+						print(currentrecord.as_json())
 						print(traceback.format_exc())
 
 				# Prepare empty new record and switch to the current control number
@@ -110,6 +115,9 @@ def main():
 				continue
 
 			if field in ['001', '003', '005', '007', '008']:
+				if field == '001':
+					# Remove test control number
+					currentrecord.remove_fields('001')
 				currentrecord.add_field( Field(tag=field, data=subfield))
 			elif field == 'LDR':
 				currentrecord.leader = subfield
