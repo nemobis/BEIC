@@ -142,18 +142,16 @@ def main():
 					if field in ['100', '700']:
 						authorities['100'][subdictindex] = subdict
 					if field in ['110', '710', '852']:
-						if '4' in subdict:
-							subdict.remove('4')
-						if 'e' in subdict:
-							subdict.remove('e')
-						if 'n' in subdict:
-							subdict.remove('n')
-						if 'j' in subdict:
-							subdict.remove('j')
-						#FIXME: reimplement for the list
-						#if field in ['852']:
-						#	subdict['ind1'] = '2'
-						#	subdict['ind2'] = ' '
+						# We'll need to pass an expunged version to the authority record
+						for needle in ['4', 'e', 'n', 'j']:
+							if needle not in subdict:
+								continue
+							target = subdict.index(needle)
+							# Remove the subfield name and the next item i.e. the content
+							discard = subdict.pop(target)
+							discard = subdict.pop(target)
+						if field in ['852']:
+							subdict.extend(['ind1', '2', 'ind2', ' '])
 						subdictindex = pickle.dumps(subdict)
 						authorities['110'][subdictindex] = subdict
 					if field in ['111']:
@@ -172,7 +170,7 @@ def main():
 
 		writer.close()
 
-	with open('Authority.xml', 'w+') as xmlauth:
+	with open('Authority.xml', 'wb+') as xmlauth:
 		writer = XMLWriter(xmlauth)
 		for field in authorities:
 			for authority in authorities[field]:
