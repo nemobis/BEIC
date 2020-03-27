@@ -47,6 +47,22 @@ def createEmptyAuthority(topical=False, classification=False):
 						subfields = ['a', 'IT-MiFBE', 'b', 'ita', 'c', 'IT-MiFBE', 'e', 'reicat' ] ) )
 	return record
 
+def removeSubfields(field, subfields):
+	""" Takes an arrays and removes an array of strings and the strings appearing next to them. """
+	for needle in subfields:
+		if needle not in field:
+			continue
+		target = field.index(needle)
+		# Remove the subfield name and the next item i.e. the content
+		discard = field.pop(target)
+		try:
+			discard = field.pop(target)
+		except IndexError:
+			# For some reason this subfield was empty.
+			pass
+
+	return field
+
 def main():
 	# Assumes CSV file in the same format as produced by one BEIC DB
 	# mdb-export -d"\t" input.accdb BibliographicRecords > BibliographicRecords.csv
@@ -56,6 +72,7 @@ def main():
 		writer = XMLWriter(xmlout)
 		writerc = XMLWriter(xmloutc)
 
+		# FIXME: Handle double quotes.
 		records = csv.reader(csvrecords,
 			delimiter='\t',
 			lineterminator='\n',
@@ -151,13 +168,7 @@ def main():
 						authorities['100'][subdictindex] = subdict
 					if field in ['110', '710', '852']:
 						# We'll need to pass an expunged version to the authority record
-						for needle in ['4', 'e', 'n', 'j']:
-							if needle not in subdict:
-								continue
-							target = subdict.index(needle)
-							# Remove the subfield name and the next item i.e. the content
-							discard = subdict.pop(target)
-							discard = subdict.pop(target)
+						subdict = removeSubfields(subdict, ['4', 'e', 'n', 'j'])
 						if field in ['852']:
 							subdict.extend(['ind1', '2', 'ind2', ' '])
 						subdictindex = pickle.dumps(subdict)
@@ -165,6 +176,7 @@ def main():
 					if field in ['111']:
 						authorities['111'][subdictindex] = subdict
 					if field in ['130', '240', '730', '830']:
+						subdict = removeSubfields(subdict, ['v', 'n'])
 						authorities['130'][subdictindex] = subdict
 					if field in ['650', '654']:
 						authorities['150'][subdictindex] = subdict
@@ -177,6 +189,7 @@ def main():
 					continue
 
 		writer.close()
+		writerc.close()
 
 	with open('Authority.xml', 'wb+') as xmlauth:
 		writer = XMLWriter(xmlauth)
@@ -187,40 +200,50 @@ def main():
 					topical=(field == '150'),
 					classification=(field == '153')
 				)
-				i1 = subfields.pop('ind1', ' ')
-				i2 = subfields.pop('ind2', ' ')
 				# Remove subfields which don't apply within authority records.
-				no = subfields.pop('4', '')
+				subfields = removeSubfields(subfields, ['ind1', 'ind2', '4'])
+				# TODO: Aren't we supposed to keep some of those indicators?
+				i1 = ' '
+				i2 = ' '
 				if field in ['130']:
 					i1 = ' '
 					i2 = '0'
 				if field in ['150', '151', '153']:
-					no = subfields.pop('2', '')
+					subfields = removeSubfields(subfields, ['2'])
 				if field in ['153']:
-					no = subfields.pop('q', '')
+					subfields = removeSubfields(subfields, ['q'])
 				if field in ['150', '153']:
 					i1 = i2 = ' '
 				if field in ['153']:
+					# Split the subjects from the $9 into $h and $j. Example source 082:
+					# "$a704.942$9Soggetti speciali nelle belle arti e arti decorative. Figure umane$2WebDewey$qIT-MiFBE"
+					if '9' in subfields:
+						index9 = subfields.index('9')
+						subj = subfields[index9+1]
+						subfields = removeSubfields(subfields, ['9'])
 					try:
-						subs = subfields.pop('9', '')[0].split('. ')
+						subj = subj.split('. ')
 					except:
-						subs = None
-					if subs:
-						subfields['j'] = subs.pop()
-						subfields['h'] = []
-						for sub in subs:
-							# FIXME: Allow multiple
-							subfields['h'].append(subs.pop())
+						subj = None
+					if subj:
+						subfields.extend(['j', subj.pop()])
+						for sub in subj:
+							subfields.extend(['h', subj.pop()])
 
 				try:
 					record.add_field( Field(tag=field, indicators=[i1, i2], subfields=subfields) )
-					record.add_field( Field(tag='001', data=to_bytes(hashlib.md5(str(subfields)).hexdigest())) )
+					record.remove_fields('001')
+					record.add_field( Field(tag='001', data=to_bytes(hashlib.md5(to_bytes(subfields)).hexdigest())) )
 					writer.write(record)
+					xmlauth.write(b'\n')
 				except KeyError:
-					print("No buono!")
+					print("ERROR: No buono!")
 					print(subfields)
 				except ValueError:
 					print("ERROR: Empty subfields!")
+					print(subfields)
+				except IndexError:
+					print("ERROR: Cannot write XML! Probably some broken subfield list.")
 					print(subfields)
 		writer.close()
 
