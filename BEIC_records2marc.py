@@ -209,11 +209,23 @@ def main():
 		writerc.close()
 		writerh.close()
 
-	with open('Authority.xml', 'wb+') as xmlauth:
-		writer = XMLWriter(xmlauth)
-		for field in authorities:
+	for field in authorities:
+		namesDone = set()
+		with open('Authority' + str(field) + '.xml', 'wb+') as xmlauth:
+			writer = XMLWriter(xmlauth)
 			for authority in authorities[field]:
 				subfields = authorities[field][authority]
+				# Check full name of current authority with main subfields
+				# Dict format from old library:
+				# currentName = ''.join([str(value).strip() for key, value in subfields.items() if key in ['a', 'b', 'c', 'd']])
+				# TODO: More precise selection of subfields
+				currentName = ''.join(subfields[:3])
+				if currentName in namesDone:
+					# Avoid duplicate. FIXME: Find out why it was saved in the first place.
+					print("INFO: Skipping apparent duplicate record for {}".format(currentName))
+					continue
+				else:
+					namesDone.add(currentName)
 				record = createEmptyAuthority(
 					topical=(field == '150'),
 					classification=(field == '153')
@@ -263,7 +275,7 @@ def main():
 				except IndexError:
 					print("ERROR: Cannot write XML! Probably some broken subfield list.")
 					print(subfields)
-		writer.close()
+			writer.close()
 
 
 if __name__ == '__main__':
