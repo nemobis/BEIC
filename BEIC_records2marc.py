@@ -155,11 +155,19 @@ with open('BibliographicRecords.csv', 'rb') as csvrecords:
 	xmlout.write('</collection>\n')
 	xmlout.close()
 
-with open('Authority.xml', 'w+') as xmlauth:
-	xmlauth.write(getXmlHeader())
-	for field in authorities:
+for field in authorities:
+	namesDone = set()
+	with open('Authority' + str(field) + '.xml', 'w+') as xmlauth:
+		xmlauth.write(getXmlHeader())
 		for authority in authorities[field]:
 			subfields = authorities[field][authority]
+			# Check full name of current authority with main subfields
+			currentName = ''.join([str(value).strip() for key, value in subfields.items() if key in ['a', 'b', 'c', 'd'])
+			if currentName in namesDone:
+				# Avoid duplicate. FIXME: Find out why it was saved in the first place.
+				continue
+			else:
+				namesDone.add(currentName)
 			record = createEmptyAuthority(
 				topical=(field == '150'),
 				classification=(field == '153')
@@ -199,4 +207,4 @@ with open('Authority.xml', 'w+') as xmlauth:
 			except ValueError:
 				print "ERROR: Empty subfields!"
 				print subfields
-	xmlauth.write('</collection>\n')
+		xmlauth.write('</collection>\n')
