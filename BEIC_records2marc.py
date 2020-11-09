@@ -69,8 +69,10 @@ def main():
 	with open('BibliographicRecords.csv', 'r') as csvrecords:
 		xmlout = open('BibliographicRecords.xml', 'wb+')
 		xmloutc = open('BibliographicRecordsComponents.xml', 'wb+')
+		xmlouth = open('BibliographicRecordsHosts.xml', 'wb+')
 		writer = XMLWriter(xmlout)
 		writerc = XMLWriter(xmloutc)
+		writerh = XMLWriter(xmlouth)
 
 		# FIXME: Handle double quotes.
 		records = csv.reader(csvrecords,
@@ -89,6 +91,8 @@ def main():
 		# Initiate with empty data
 		controlnumber = None
 		currentrecord = None
+		currentrecord_ishost = None
+		currentrecord_iscomponent = None
 		authorities = {}
 		for field in ['100', '110', '111', '130', '150', '151', '153']:
 			authorities[field] = {}
@@ -102,18 +106,22 @@ def main():
 					try:
 						if currentrecordcontrol != "999test999":
 							# The record seems to have been completed. Write it out.
-							if currentrecord.leader[7] in ['a', 'b']:
+							if currentrecord_iscomponent:
 								# Split the components to their own XML.
 								writerc.write(currentrecord)
 								xmloutc.write(b'\n')
+							elif currentrecord_ishost:
+								# Split the hosts to their own XML.
+								writerh.write(currentrecord)
+								xmlouth.write(b'\n')
 							else:
 								writer.write(currentrecord)
 								xmlout.write(b'\n')
 							print("INFO: Exported %s" % currentrecordcontrol) # FIXME check  get_fields
 							# The record must have either a 130 or a 240
 							# and also either 654, 690 or 854
-							# All records are expected to have certain fields, except components (CMP- and ART-).
-							if currentrecord.leader[7] not in ['a', 'b']:
+							# All records are expected to have certain fields, except components (mostly CMP- and ART-).
+							if not currentrecord_iscomponent:
 								if '130' not in currentrecord and '240' not in currentrecord:
 									print("WARNING: the record had no 240 nor 130 field")
 								if '654' not in currentrecord and '690' not in currentrecord and '854' not in currentrecord:
@@ -129,7 +137,16 @@ def main():
 				currentrecord = Record()
 				currentrecord.add_field( Field(tag='001', data='999test999') )
 				controlnumber = row.NumeroDiControllo
+				# Reset host/component status
+				currentrecord_ishost = None
+				currentrecord_iscomponent = None
 
+			# Host/component status needs to be checked at every row
+			# Because the first row is not guaranteed to declare it
+			if "Host" in row.LivelloBibliografico:
+				currentrecord_ishost = True
+			elif "Component" in row.LivelloBibliografico:
+				currentrecord_iscomponent = True
 			field = row.CodiceCampo or row.CodiceCampoOriginale
 			subfieldsraw = row.Sottocampi or row.SottocampiOriginali
 			# The source storage replaces spaces with slashes
@@ -190,6 +207,7 @@ def main():
 
 		writer.close()
 		writerc.close()
+		writerh.close()
 
 	with open('Authority.xml', 'wb+') as xmlauth:
 		writer = XMLWriter(xmlauth)
