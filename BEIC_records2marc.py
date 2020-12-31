@@ -63,6 +63,99 @@ def removeSubfields(field, subfields):
 
 	return field
 
+def extendAuthorities(authorities, field, subdict, subdictindex):
+	""" Takes the current "database" of authorities and adds what it can from the currently examined field """
+
+	if field in ['100', '700']:
+		authorities['100'][subdictindex] = subdict
+	if field in ['110', '710', '852']:
+		# We'll need to pass an expunged version to the authority record
+		subdict = removeSubfields(subdict, ['4', 'e', 'n', 'j'])
+		if field in ['852']:
+			subdict.extend(['ind1', '2', 'ind2', ' '])
+		subdictindex = pickle.dumps(subdict)
+		authorities['110'][subdictindex] = subdict
+	if field in ['111']:
+		authorities['111'][subdictindex] = subdict
+	if field in ['130', '240', '730', '830']:
+		subdict = removeSubfields(subdict, ['v', 'n'])
+		authorities['130'][subdictindex] = subdict
+	if field in ['650', '654']:
+		authorities['150'][subdictindex] = subdict
+	if field in ['751']:
+		authorities['151'][subdictindex] = subdict
+	if field in ['082']:
+		authorities['153'][subdictindex] = subdict
+
+	return authorities
+
+def writeAuthority(xmlauth, field, subfields, namesDone):
+	""" Takes an array of authority subfields and writes it to the provided XML writer if not done already, extends given list of done names """
+
+	# Check full name of current authority with main subfields
+	# Dict format from old library:
+	# currentName = ''.join([str(value).strip() for key, value in subfields.items() if key in ['a', 'b', 'c', 'd']])
+	# TODO: More precise selection of subfields
+	currentName = ''.join(subfields[:3])
+	print("INFO: Currently working on authority by the name {}".format(currentName))
+	if currentName in namesDone:
+		# Avoid duplicate. FIXME: Find out why it was saved in the first place.
+		print("INFO: Skipping apparent duplicate record for {}".format(currentName))
+		return namesDone
+	else:
+		namesDone.add(currentName)
+	record = createEmptyAuthority(
+		topical=(field == '150'),
+		classification=(field == '153')
+	)
+	# Remove subfields which don't apply within authority records.
+	subfields = removeSubfields(subfields, ['ind1', 'ind2', '4'])
+	# TODO: Aren't we supposed to keep some of those indicators?
+	i1 = ' '
+	i2 = ' '
+	if field in ['130']:
+		i1 = ' '
+		i2 = '0'
+	if field in ['150', '151', '153']:
+		subfields = removeSubfields(subfields, ['2'])
+	if field in ['153']:
+		subfields = removeSubfields(subfields, ['q'])
+	if field in ['150', '153']:
+		i1 = i2 = ' '
+	if field in ['153']:
+		# Split the subjects from the $9 into $h and $j. Example source 082:
+		# "$a704.942$9Soggetti speciali nelle belle arti e arti decorative. Figure umane$2WebDewey$qIT-MiFBE"
+		if '9' in subfields:
+			index9 = subfields.index('9')
+			subj = subfields[index9+1]
+			subfields = removeSubfields(subfields, ['9'])
+		try:
+			subj = subj.split('. ')
+		except:
+			subj = None
+		if subj:
+			subfields.extend(['j', subj.pop()])
+			for sub in subj:
+				subfields.extend(['h', subj.pop()])
+
+	try:
+		record.add_field( Field(tag=field, indicators=[i1, i2], subfields=subfields) )
+		record.remove_fields('001')
+		record.add_field( Field(tag='001', data=to_bytes(hashlib.md5(to_bytes(subfields)).hexdigest())) )
+		writer.write(record)
+		xmlauth.write(b'\n')
+	except KeyError:
+		print("ERROR: No buono!")
+		print(subfields)
+	except ValueError:
+		print("ERROR: Empty subfields!")
+		print(subfields)
+	except IndexError:
+		print("ERROR: Cannot write XML! Probably some broken subfield list.")
+		print(subfields)
+	finally:
+		return namesDone
+
 def main():
 	# Assumes CSV file in the same format as produced by one BEIC DB
 	# mdb-export -d"\t" input.accdb BibliographicRecords > BibliographicRecords.csv
@@ -181,26 +274,7 @@ def main():
 					# later and written out to XML above when no more data is found.
 					currentrecord.add_field( Field( tag=field, indicators=[i1, i2], subfields=subdict ) )
 					# Switch to collecting data for authorities
-					if field in ['100', '700']:
-						authorities['100'][subdictindex] = subdict
-					if field in ['110', '710', '852']:
-						# We'll need to pass an expunged version to the authority record
-						subdict = removeSubfields(subdict, ['4', 'e', 'n', 'j'])
-						if field in ['852']:
-							subdict.extend(['ind1', '2', 'ind2', ' '])
-						subdictindex = pickle.dumps(subdict)
-						authorities['110'][subdictindex] = subdict
-					if field in ['111']:
-						authorities['111'][subdictindex] = subdict
-					if field in ['130', '240', '730', '830']:
-						subdict = removeSubfields(subdict, ['v', 'n'])
-						authorities['130'][subdictindex] = subdict
-					if field in ['650', '654']:
-						authorities['150'][subdictindex] = subdict
-					if field in ['751']:
-						authorities['151'][subdictindex] = subdict
-					if field in ['082']:
-						authorities['153'][subdictindex] = subdict
+					authorities = extendAuthorities(authorities, field, subdict, subdictindex)
 				except ValueError:
 					print('WARNING: Could not add one field')
 					continue
@@ -210,71 +284,12 @@ def main():
 		writerh.close()
 
 	for field in authorities:
+		print("INFO: Starting authorities from field {}".format(field))
 		namesDone = set()
 		with open('Authority' + str(field) + '.xml', 'wb+') as xmlauth:
 			writer = XMLWriter(xmlauth)
 			for authority in authorities[field]:
-				subfields = authorities[field][authority]
-				# Check full name of current authority with main subfields
-				# Dict format from old library:
-				# currentName = ''.join([str(value).strip() for key, value in subfields.items() if key in ['a', 'b', 'c', 'd']])
-				# TODO: More precise selection of subfields
-				currentName = ''.join(subfields[:3])
-				if currentName in namesDone:
-					# Avoid duplicate. FIXME: Find out why it was saved in the first place.
-					print("INFO: Skipping apparent duplicate record for {}".format(currentName))
-					continue
-				else:
-					namesDone.add(currentName)
-				record = createEmptyAuthority(
-					topical=(field == '150'),
-					classification=(field == '153')
-				)
-				# Remove subfields which don't apply within authority records.
-				subfields = removeSubfields(subfields, ['ind1', 'ind2', '4'])
-				# TODO: Aren't we supposed to keep some of those indicators?
-				i1 = ' '
-				i2 = ' '
-				if field in ['130']:
-					i1 = ' '
-					i2 = '0'
-				if field in ['150', '151', '153']:
-					subfields = removeSubfields(subfields, ['2'])
-				if field in ['153']:
-					subfields = removeSubfields(subfields, ['q'])
-				if field in ['150', '153']:
-					i1 = i2 = ' '
-				if field in ['153']:
-					# Split the subjects from the $9 into $h and $j. Example source 082:
-					# "$a704.942$9Soggetti speciali nelle belle arti e arti decorative. Figure umane$2WebDewey$qIT-MiFBE"
-					if '9' in subfields:
-						index9 = subfields.index('9')
-						subj = subfields[index9+1]
-						subfields = removeSubfields(subfields, ['9'])
-					try:
-						subj = subj.split('. ')
-					except:
-						subj = None
-					if subj:
-						subfields.extend(['j', subj.pop()])
-						for sub in subj:
-							subfields.extend(['h', subj.pop()])
-
-				try:
-					record.add_field( Field(tag=field, indicators=[i1, i2], subfields=subfields) )
-					record.remove_fields('001')
-					record.add_field( Field(tag='001', data=to_bytes(hashlib.md5(to_bytes(subfields)).hexdigest())) )
-					writer.write(record)
-					xmlauth.write(b'\n')
-				except KeyError:
-					print("ERROR: No buono!")
-					print(subfields)
-				except ValueError:
-					print("ERROR: Empty subfields!")
-					print(subfields)
-				except IndexError:
-					print("ERROR: Cannot write XML! Probably some broken subfield list.")
-					print(subfields)
+				namesDone = writeAuthority(xmlauth, field, authorities[field][authority], namesDone)
 			writer.close()
 
 			try:
