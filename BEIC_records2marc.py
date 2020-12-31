@@ -63,9 +63,12 @@ def removeSubfields(field, subfields):
 
 	return field
 
-def extendAuthorities(authorities, field, subdict, subdictindex):
+def extendAuthorities(authorities, field, subdict):
 	""" Takes the current "database" of authorities and adds what it can from the currently examined field """
 
+	# Create only one array of authority subfields for each unique original field
+	# Consider as equivalent two arrays of the same strings, apart from spacing and order
+	subdictindex = ''.join(sorted([a.strip() for a in subdict]))
 	if field in ['100', '700']:
 		authorities['100'][subdictindex] = subdict
 	if field in ['110', '710', '852']:
@@ -92,11 +95,19 @@ def extendAuthorities(authorities, field, subdict, subdictindex):
 def writeAuthority(writer, field, subfields, namesDone):
 	""" Takes an array of authority subfields and writes it to the provided writer if not done already, extends given list of done names """
 
+	# Remove subfields which don't apply within authority records.
+	# Needs to be before deduplication to catch diffrent $4 like:
+	# "$aRostropovič, Mstislav Leopoldovič$4(cnd|prf|aut)$d1927-2007"
+	subfields = removeSubfields(subfields, ['ind1', 'ind2', '4'])
+
 	# Check full name of current authority with main subfields
 	# Dict format from old library:
 	# currentName = ''.join([str(value).strip() for key, value in subfields.items() if key in ['a', 'b', 'c', 'd']])
 	# TODO: More precise selection of subfields
-	currentName = ''.join(subfields[:3])
+	# Needs to cover at least $b for popes and the like:
+	# <subfield code="a">Benedictus</subfield><subfield code="b">14.</subfield>
+
+	currentName = ''.join(subfields[:4])
 	print("INFO: Currently working on authority by the name {}".format(currentName))
 	if currentName in namesDone:
 		# Avoid duplicate. FIXME: Find out why it was saved in the first place.
@@ -108,8 +119,6 @@ def writeAuthority(writer, field, subfields, namesDone):
 		topical=(field == '150'),
 		classification=(field == '153')
 	)
-	# Remove subfields which don't apply within authority records.
-	subfields = removeSubfields(subfields, ['ind1', 'ind2', '4'])
 	# TODO: Aren't we supposed to keep some of those indicators?
 	i1 = ' '
 	i2 = ' '
@@ -262,7 +271,6 @@ def main():
 				# Remove the first empty string from before the dollar sign
 				if '' in subdict:
 					subdict.remove('')
-				subdictindex = subfieldsraw # FIXME: hash
 
 				i1 = re.sub(r'\\', ' ', row.Indicatore1 or row.Indicatore1Originale) or ' '
 				i2 = re.sub(r'\\', ' ', row.Indicatore2 or row.Indicatore2Originale) or ' '
@@ -273,7 +281,7 @@ def main():
 					# later and written out to XML above when no more data is found.
 					currentrecord.add_field( Field( tag=field, indicators=[i1, i2], subfields=subdict ) )
 					# Switch to collecting data for authorities
-					authorities = extendAuthorities(authorities, field, subdict, subdictindex)
+					authorities = extendAuthorities(authorities, field, subdict)
 				except ValueError:
 					print('WARNING: Could not add one field')
 					continue
