@@ -88,32 +88,31 @@ def normaliseRecord(record):
 
 	return record
 
-def extendAuthorities(authorities, field, subdict):
+def extendAuthorities(authorities, field, subfields):
 	""" Takes the current "database" of authorities and adds what it can from the currently examined field """
 
 	# Create only one array of authority subfields for each unique original field
 	# Consider as equivalent two arrays of the same strings, apart from spacing and order
-	subdictindex = ''.join(sorted([a.strip() for a in subdict]))
+	subfieldsindex = ''.join(sorted([a.strip() for a in subfields]))
 	if field in ['100', '700']:
-		authorities['100'][subdictindex] = subdict
+		authorities['100'][subfieldsindex] = subfields
 	if field in ['110', '710', '852']:
 		# We'll need to pass an expunged version to the authority record
-		subdict = removeSubfields(subdict, ['4', 'e', 'n', 'j'])
+		subfields = removeSubfields(subfields, ['4', 'e', 'n', 'j'])
 		if field in ['852']:
-			subdict.extend(['ind1', '2', 'ind2', ' '])
-		subdictindex = pickle.dumps(subdict)
-		authorities['110'][subdictindex] = subdict
+			subfields.extend(['ind1', '2', 'ind2', ' '])
+		authorities['110'][subfieldsindex] = subfields
 	if field in ['111']:
-		authorities['111'][subdictindex] = subdict
+		authorities['111'][subfieldsindex] = subfields
 	if field in ['130', '240', '730', '830']:
-		subdict = removeSubfields(subdict, ['v', 'n'])
-		authorities['130'][subdictindex] = subdict
+		subfields = removeSubfields(subfields, ['v', 'n'])
+		authorities['130'][subfieldsindex] = subfields
 	if field in ['650', '654']:
-		authorities['150'][subdictindex] = subdict
+		authorities['150'][subfieldsindex] = subfields
 	if field in ['751']:
-		authorities['151'][subdictindex] = subdict
+		authorities['151'][subfieldsindex] = subfields
 	if field in ['082']:
-		authorities['153'][subdictindex] = subdict
+		authorities['153'][subfieldsindex] = subfields
 
 	return authorities
 
