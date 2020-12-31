@@ -63,6 +63,31 @@ def removeSubfields(field, subfields):
 
 	return field
 
+def normaliseRecord(record):
+	""" Make some mass changes to the "final" record before it is written out """
+
+	# Throw away the old license metadata and add a standard new one
+	if record.get_fields('540'):
+		record.remove_fields('540')
+	# Apart from the music discs, everything online is PD or freely licensed
+	if record.leader[6] != 'j':
+		# TODO: SPDX cc-by-sa-4.0 would be better but need to get https://www.loc.gov/marc/bibliographic/bd540.html fixed first.
+		record.add_field( Field(tag='540', indicators=[' ', ' '], subfields=['a', 'Creative Commons Attribution ShareAlike 4.0', 'f', 'CC BY-4.0', '2', 'cc', 'u', 'https://creativecommons.org/licenses/by-sa/4.0' ]) )
+
+	# STAR is only in English
+	if record.get_fields('506') and len([field for field in record.get_fields('506') if 'Opera liberamente accessibile' in field.value()]) > 0:
+		record.remove_fields('506')
+		record.add_field( Field(tag='506', indicators=['0', ' '], subfields=['a', 'No restrictions on access copy.', 'f', 'Unrestricted online access', '2', 'star']) )
+
+	# Replace "IT-MiFBE" (ICCU code) to other variants like the full name of the agency
+	if record.get_fields('533') and len([field for field in record.get_fields('533') if 'Electronic reproduction' in field.value()]) > 0:
+		for field in record.get_fields('533'):
+			if 'Electronic reproduction' in field.value():
+				field.delete_subfield('c')
+				field.add_subfield('c', 'IT-MiFBE')
+
+	return record
+
 def extendAuthorities(authorities, field, subdict):
 	""" Takes the current "database" of authorities and adds what it can from the currently examined field """
 
@@ -207,6 +232,7 @@ def main():
 					try:
 						if currentrecordcontrol != "999test999":
 							# The record seems to have been completed. Write it out.
+							currentrecord = normaliseRecord(currentrecord)
 							if currentrecord_iscomponent:
 								# Split the components to their own XML.
 								writerc.write(currentrecord)
