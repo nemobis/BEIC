@@ -72,7 +72,7 @@ def normaliseRecord(record):
 	# Apart from the music discs, everything online is PD or freely licensed
 	if record.leader[6] != 'j':
 		# TODO: SPDX cc-by-sa-4.0 would be better but need to get https://www.loc.gov/marc/bibliographic/bd540.html fixed first.
-		record.add_field( Field(tag='540', indicators=[' ', ' '], subfields=['a', 'Creative Commons Attribution ShareAlike 4.0', 'f', 'CC BY-4.0', '2', 'cc', 'u', 'https://creativecommons.org/licenses/by-sa/4.0' ]) )
+		record.add_field( Field(tag='540', indicators=[' ', ' '], subfields=['a', 'Creative Commons Attribution ShareAlike 4.0', 'f', 'CC BY-SA 4.0', '2', 'cc', 'u', 'https://creativecommons.org/licenses/by-sa/4.0' ]) )
 
 	# STAR is only in English
 	if record.get_fields('506') and len([field for field in record.get_fields('506') if 'Opera liberamente accessibile' in field.value()]) > 0:
@@ -94,11 +94,10 @@ def extendAuthorities(authorities, field, subfields):
 	# Create only one array of authority subfields for each unique original field
 	# Consider as equivalent two arrays of the same strings, apart from spacing and order
 	subfieldsindex = ''.join(sorted([a.strip() for a in subfields]))
+	subfieldsindex = hashlib.md5(to_bytes(subfieldsindex)).hexdigest()
 	if field in ['100', '700']:
 		authorities['100'][subfieldsindex] = subfields
 	if field in ['110', '710', '852']:
-		# We'll need to pass an expunged version to the authority record
-		subfields = removeSubfields(subfields, ['4', 'e', 'n', 'j'])
 		if field in ['852']:
 			subfields.extend(['ind1', '2', 'ind2', ' '])
 		authorities['110'][subfieldsindex] = subfields
@@ -146,7 +145,11 @@ def writeAuthority(writer, field, subfields, namesDone):
 	# TODO: Aren't we supposed to keep some of those indicators?
 	i1 = ' '
 	i2 = ' '
+	if field in ['110']:
+		# We'll need to pass an expunged version to the authority record
+		subfields = removeSubfields(subfields, ['4', 'e', 'n', 'j'])
 	if field in ['130']:
+		subfields = removeSubfields(subfields, ['v', 'n'])
 		i1 = ' '
 		i2 = '0'
 	if field in ['150', '151', '153']:
