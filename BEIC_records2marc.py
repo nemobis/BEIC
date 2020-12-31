@@ -89,8 +89,8 @@ def extendAuthorities(authorities, field, subdict, subdictindex):
 
 	return authorities
 
-def writeAuthority(xmlauth, field, subfields, namesDone):
-	""" Takes an array of authority subfields and writes it to the provided XML writer if not done already, extends given list of done names """
+def writeAuthority(writer, field, subfields, namesDone):
+	""" Takes an array of authority subfields and writes it to the provided writer if not done already, extends given list of done names """
 
 	# Check full name of current authority with main subfields
 	# Dict format from old library:
@@ -143,7 +143,6 @@ def writeAuthority(xmlauth, field, subfields, namesDone):
 		record.remove_fields('001')
 		record.add_field( Field(tag='001', data=to_bytes(hashlib.md5(to_bytes(subfields)).hexdigest())) )
 		writer.write(record)
-		xmlauth.write(b'\n')
 	except KeyError:
 		print("ERROR: No buono!")
 		print(subfields)
@@ -289,20 +288,11 @@ def main():
 		with open('Authority' + str(field) + '.xml', 'wb+') as xmlauth:
 			writer = XMLWriter(xmlauth)
 			for authority in authorities[field]:
-				namesDone = writeAuthority(xmlauth, field, authorities[field][authority], namesDone)
-			writer.close()
-
-			try:
-				record.add_data_field(field, i1, i2, subfields)
-				record.add_ctl_field('001', to_bytes(hashlib.md5(str(subfields)).hexdigest()))
-				xmlauth.write(record.to_XML())
-			except KeyError:
-				print "No buono!"
-				print subfields
-			except ValueError:
-				print "ERROR: Empty subfields!"
-				print subfields
-		xmlauth.write('</collection>\n')
+				namesDone = writeAuthority(writer, field, authorities[field][authority], namesDone)
+				# TODO: Avoid extra newlines when no new record has been written
+				xmlauth.write(b'\n')
+			# TODO: Is the writer closed separately from its underlying file?
+			xmlauth.write(b'</collection>\n')
 
 if __name__ == '__main__':
 	main()
